@@ -3,6 +3,7 @@ Install all core libraries and pull the domain-specific transformer model for An
 
 Bash
 pip install -r requirements.txt
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
 pip install https://huggingface.co/chcaa/grc_odycy_joint_trf/resolve/main/grc_odycy_joint_trf-0.7.0-py3-none-any.whl
 
 ##Step 2: Extract Training Features
