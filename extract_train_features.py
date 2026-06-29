@@ -1,4 +1,5 @@
 import os
+import re
 import pandas as pd
 import json
 from collections import Counter
@@ -24,9 +25,19 @@ GREEK_FUNCTION_WORDS_LEMMATA = {
     "εἰμί", "γίγνομαι", "ἔχω"
 }
 
+
 def extract_text(filepath):
     with open(filepath, 'r', encoding='utf-8') as f:
-        return BeautifulSoup(f, 'lxml-xml').get_text(separator=' ') if filepath.endswith(".xml") else f.read()
+        raw_text = BeautifulSoup(f, 'lxml-xml').get_text(separator=' ') if filepath.endswith(".xml") else f.read()
+
+    # REGEX-FILTER: Entfernt alle Zahlen, lateinischen Buchstaben und Klammern.
+    # Behält nur Zeichen aus dem griechischen und koptischen Unicode-Block (inkl. Polytonisch).
+    clean_text = re.sub(r'[^\u0370-\u03FF\u1F00-\u1FFF\s]', ' ', raw_text)
+
+    # Mehrfache Leerzeichen durch ein einziges ersetzen
+    clean_text = re.sub(r'\s+', ' ', clean_text)
+
+    return clean_text.strip()
 
 def extract_sample_features(text_sample):
     doc = nlp(text_sample)
@@ -88,5 +99,14 @@ def process_training_corpus(input_dirs, output_csv, vocab_json):
     print(f"Training Features gespeichert in {output_csv}")
 
 if __name__ == "__main__":
-    train_dirs = ["data/train/asterius", "data/train/hard_negatives", "data/train/easy_negatives"]
+    # Hier alle Ordner auflisten, die für das Training genutzt werden sollen
+    train_dirs = [
+        "data/train/asterius",
+        "data/train/chrysostomos",
+        "data/train/severian",
+        "data/train/gregor_nyssa"
+        "data/train/gregor_nazianz"
+        "data/train/basilius"
+        "data/train/amphilochius"
+    ]
     process_training_corpus(train_dirs, "train_features.csv", "top_features_vocabulary.json")
