@@ -11,7 +11,7 @@ By extracting high-dimensional linguistic features and training an artificial Si
 
 The architecture is divided into six sequential phases:
 
-### 1. Feature Extraction (`extract_features_improved.py`)
+### 1. Feature Extraction (`extract_train_features.py`)
 The Ancient Greek source texts (TEI-XML or TXT) are cleaned, stripped of modern punctuation, and divided into standardized text segments (~1000 words). Utilizing the transformer-based language model `grc_odycy_joint_trf` (OdyCy), the pipeline extracts three morphosyntactic feature levels:
 * Lemmatized function words (MFWs) to capture unconscious syntactic patterns.
 * Part-of-Speech (POS) trigrams to map sentence structure.

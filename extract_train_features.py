@@ -107,6 +107,5 @@ if __name__ == "__main__":
         "data/train/gregor_nyssa"
         "data/train/gregor_nazianz"
         "data/train/basilius"
-        "data/train/amphilochius"
     ]
     process_training_corpus(train_dirs, "train_features.csv", "top_features_vocabulary.json")

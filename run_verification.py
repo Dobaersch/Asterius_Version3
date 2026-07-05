@@ -19,9 +19,9 @@ class PatristicTripletDataset(Dataset):
 
         # 2. Trennung der Klassen (ignoriert Groß-/Kleinschreibung)
         self.asterius_df = self.df[auteurs_lower == 'asterius'].drop(columns=['Auteur', 'Titre']).values
-        self.hard_negatives_df = self.df[auteurs_lower.isin(['chrysostomos', 'severian'])].drop(
+        self.hard_negatives_df = self.df[auteurs_lower.isin(['chrysostomos', 'basilius'])].drop(
             columns=['Auteur', 'Titre']).values
-        self.easy_negatives_df = self.df[~auteurs_lower.isin(['asterius', 'chrysostomos', 'severian'])].drop(
+        self.easy_negatives_df = self.df[~auteurs_lower.isin(['asterius', 'chrysostomos', 'basilius'])].drop(
             columns=['Auteur', 'Titre']).values
 
         # 3. Sicherheitsabfragen (Verhindert den num_samples=0 Fehler)
