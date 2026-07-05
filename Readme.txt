@@ -1,51 +1,53 @@
-##Step 1: Environment Initialization
-Install all core libraries and pull the domain-specific transformer model for Ancient Greek (OdyCy) from HuggingFace.
+# Authorship Verification: Pseudo-Chrysostom vs. Asterius of Amaseia
 
-Bash
+## Project Description
+This Digital Humanities project applies computational stylometry and deep learning (metric learning) to investigate the authorship of the late antique Greek sermon corpus. Specifically, it examines which of the texts transmitted anonymously or under the name of John Chrysostom (*Pseudo-Chrysostom*) exhibit a stylistic signature consistent with the authenticated works of **Asterius of Amaseia**.
+
+By extracting high-dimensional linguistic features and training an artificial Siamese Neural Network, the pipeline calculates the Euclidean distance between anonymous texts and the calibrated author profile to establish empirically grounded authorship attributions.
+
+---
+
+## Methodological Pipeline
+
+The architecture is divided into six sequential phases:
+
+### 1. Feature Extraction (`extract_features_improved.py`)
+The Ancient Greek source texts (TEI-XML or TXT) are cleaned, stripped of modern punctuation, and divided into standardized text segments (~1000 words). Utilizing the transformer-based language model `grc_odycy_joint_trf` (OdyCy), the pipeline extracts three morphosyntactic feature levels:
+* Lemmatized function words (MFWs) to capture unconscious syntactic patterns.
+* Part-of-Speech (POS) trigrams to map sentence structure.
+* Morphological affixes to measure inflectional rhythm.
+
+### 2. Model Training (`run_verification.py`)
+The high-dimensional feature matrix (`train_features.csv`) is processed.
+* **Preventing Overfitting:** The data is split into a training set (80%) and a validation set (20%), stratified by author classes.
+* **Preventing Data Leakage:** The `StandardScaler` is fitted exclusively on the training set and passively transforms the validation set.
+* **Architecture:** A Multi-Layer Perceptron (MLP) projects the data into a 64-dimensional embedding space, optimized via a `TripletMarginLoss` with Hard Negative Mining (control authors: Chrysostom, Severian). The script exports the learned model weights (`siamese_asterius.pth`) and the fitted scaler (`scaler.pkl`).
+
+### 3. Vector Space Validation (`validate_embeddings.py`)
+Prior to inference on unknown texts, this script loads the persisted weights and scaler to reduce the learned embedding space via PCA (global variance) and t-SNE (local neighborhoods). It generates the visual proof `embedding_validation.png`. The training is considered philologically valid if the authenticated Asterius texts form a dense, cohesive vector island, distinctly separated from the control authors.
+
+### 4. Metric Inference (`infer_pseudo_corpus.py`)
+The unlabeled Pseudo-Chrysostom corpus is projected into the calibrated vector space.
+* The script calculates the exact geometric center (centroid) of the Asterius style.
+* It defines a **dynamic intra-author baseline (threshold)** based on the maximum internal deviation of the authenticated Asterius dataset.
+* Each anonymous text segment is automatically classified as: *Core-Asterius* (within the threshold), *Gray Zone* (theoretical tolerance margin for genre noise), or *Rejected*.
+
+### 5. Document Aggregation (`aggregate_results.py`)
+Because the inference operates on 1000-word samples for statistical stability, this script handles the post-processing. Using regular expressions, it aggregates the segmented results back to the document level. It calculates the **Asterius Match Percentage** (the percentage of a text's segments that fall within the Asterius cluster) and exports the final synthesis `asterius_final_document_scores.csv`.
+
+### 6. Publication Visualization (`plot_final_results.py`)
+This script processes the aggregated data for academic publication. It generates a *Diverging Bar Chart* (`attribution_diverging_bar.png`) in high print quality (300 DPI), visually juxtaposing the mean Euclidean distance of the relevant texts against the critical red demarcation line of the intra-author threshold.
+
+---
+
+## Installation & Execution
+
+### Prerequisites
+* Python 3.8 or higher
+* CUDA-enabled GPU (optional, to accelerate the transformer model inference)
+
+### Install Dependencies
+```bash
 pip install -r requirements.txt
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
-pip install https://huggingface.co/chcaa/grc_odycy_joint_trf/resolve/main/grc_odycy_joint_trf-0.7.0-py3-none-any.whl
-
-##Step 2: Extract Training Features
-Run extract_train_features.py. This script processes the known corpora, isolates the most frequent lemmatized functional words, POS trigrams, and morphological tags. It establishes the master feature space and exports top_features_vocabulary.json alongside the primary dataset train_features.csv.
-
-Bash
-python extract_train_features.py
-Methodological Note: Texts are sliced into standardized 1000-word tokens to normalize frequency distributions across unevenly transmitted sermons.
-
-##Step 3: Align Inference Features
-Run extract_infer_features.py. This script processes the target Pseudo-Chrysostom corpus. Crucially, it does not calculate a new vocabulary. Instead, it forces the anonymous data into the exact dimensional shape of the training feature space by reading the previously saved top_features_vocabulary.json.
-
-Bash
-python extract_infer_features.py
-Methodological Note: This isolates the inference model from shape mismatch errors and prevents critical data leakage.
-
-##Step 4: Model Training & Hard Negative Mining
-Run run_verification.py to train the Siamese Multi-Layer Perceptron (MLP). The dataset loader pairs authentic Asterius tokens against authentic Asterius tokens (positives) and leverages a 70% bias toward Chrysostom/Severian texts (Hard Negatives) during Triplet Generation.
-
-Bash
-python run_verification.py
-This script saves the optimal weights to siamese_asterius.pth and dumps the fitted StandardScaler to scaler.pkl.
-
-##Step 5: Latent Space Validation
-Before running attribution, execute validate_embeddings.py to visually inspect the geometry of the newly defined 64-dimensional latent embedding space. It applies PCA and t-SNE dimensionality reduction.
-
-Bash
-python validate_embeddings.py
-Validation Criterion: The script outputs embedding_validation.png. Authentic Asterius tokens must form a highly cohesive, distinct cluster clearly separated from both the true Chrysostom group and the other patristic prose samples. If clusters overlap chaotically, adjust hyperparameters or increase slice token lengths before proceeding.
-
-##Step 6: Metric Inference & Centroid Attribution
-Run infer_pseudo_corpus.py. The script automatically reconstructs the ideal signature profile of Asterius by calculating his geometric mathematical mean (Centroid) across all known authentic embeddings. It calculates an intra-author baseline threshold (the maximum distance an authentic text has to its own centroid).
-
-Bash
-python infer_pseudo_corpus.py
-It projects the anonymous inference_features.csv data into this space, computes Euclidean distances to the Asterius Centroid, and logs any entry that falls safely inside the threshold.
-
-#Interpreting Output Data
-The pipeline generates asterius_candidates.csv, sorted in ascending order by distance to the Asterius profile:
-
-Distanz_zu_Asterius: Lower values indicate a closer micro-stylistic affinity.
-
-Klassifikation: Explicitly flags samples as Asterius or Spuria (Fremd).
-
-Konfidenz_%: Represents how deeply a text sits within the empirical boundaries of the authentic intra-author threshold.
+pip install torch torchvision torchaudio --index-url [https://download.pytorch.org/whl/cu118](https://download.pytorch.org/whl/cu118)
+pip install [https://huggingface.co/chcaa/grc_odycy_joint_trf/resolve/main/grc_odycy_joint_trf-0.7.0-py3-none-any.whl](https://huggingface.co/chcaa/grc_odycy_joint_trf/resolve/main/grc_odycy_joint_trf-0.7.0-py3-none-any.whl)

@@ -70,5 +70,39 @@ def visualize_embeddings(model, scaler, csv_path):
     print("Visualisierung gespeichert unter 'embedding_validation.png'.")
     plt.show()
 
-# Aufruf (benötigt das trainierte Modell und den Scaler aus run_verification.py)
-# visualize_embeddings(trained_model, fitted_scaler, 'pfad/zu/deinen/trainingsdaten.csv')
+
+if __name__ == "__main__":
+    import pickle
+    import torch
+    import pandas as pd
+
+    # WICHTIG: Die Modell-Architektur muss aus dem Trainingsskript importiert werden,
+    # damit PyTorch weiß, in welche Struktur die Gewichte geladen werden sollen.
+    # Falls deine Datei anders heißt, passe 'run_verification' entsprechend an.
+    from run_verification import SiameseTabularNet
+
+    # 1. Definiere die Pfade zu deinen Dateien
+    csv_pfad = "train_features.csv"
+    modell_pfad = "siamese_asterius.pth"
+    scaler_pfad = "scaler.pkl"
+
+    # 2. Lade den Z-Standardisierungs-Scaler
+    print("Lade persistierten Scaler...")
+    with open(scaler_pfad, "rb") as f:
+        geladener_scaler = pickle.load(f)
+
+    # 3. Lade das trainierte Modell
+    print("Lade Modellgewichte...")
+    # Um das Modell zu initialisieren, müssen wir die Input-Dimension (Anzahl der Features) kennen
+    df = pd.read_csv(csv_pfad)
+    feature_cols = df.columns.drop(['Auteur', 'Titre'])
+    input_size = len(feature_cols)
+
+    # Architektur aufbauen und gespeicherte Gewichte injizieren
+    trainiertes_modell = SiameseTabularNet(input_size)
+    trainiertes_modell.load_state_dict(torch.load(modell_pfad, weights_only=True))
+    trainiertes_modell.eval()  # Zwingend erforderlich vor der Inferenz
+
+    # 4. Führe die Visualisierung aus
+    print("Starte Dimensionsreduktion und Plotting...")
+    visualize_embeddings(trainiertes_modell, geladener_scaler, csv_pfad)

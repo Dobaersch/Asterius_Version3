@@ -1,32 +1,16 @@
-import os
 import pandas as pd
 import numpy as np
 import torch
-import torch.nn as nn
-import joblib
-from scipy.spatial import distance
-
+import pickle
+import scipy.spatial.distance as dist
 
 # =====================================================================
-# 1. ARCHITEKTUR-DEFINITION
+# 1. ZWINGENDER ARCHITEKTUR-IMPORT (Vermeidung von Code-Redundanz)
 # =====================================================================
-class SiameseTabularNet(nn.Module):
-    def __init__(self, input_size):
-        super(SiameseTabularNet, self).__init__()
-        # Identische Struktur wie im Trainingsskript (run_verification.py)
-        self.fc = nn.Sequential(
-            nn.Linear(input_size, 256),
-            nn.BatchNorm1d(256),
-            nn.ReLU(),
-            nn.Dropout(0.3),
-            nn.Linear(256, 128),
-            nn.BatchNorm1d(128),
-            nn.ReLU(),
-            nn.Linear(128, 64)  # 64-dimensionaler Einbettungsraum
-        )
-
-    def forward(self, x):
-        return self.fc(x)
+# Das Netzwerk muss exakt so aufgebaut sein wie im Training.
+# Durch den Import wird sichergestellt, dass Änderungen im Trainingsskript
+# automatisch auch in der Inferenz übernommen werden.
+from run_verification import SiameseTabularNet
 
 
 # =====================================================================
@@ -34,155 +18,116 @@ class SiameseTabularNet(nn.Module):
 # =====================================================================
 def compute_asterius_profile(model, scaler, train_csv_path):
     """
-    Berechnet das Asterius-Zentroid und den maximalen internen Distanz-Schwellenwert.
+    Berechnet das Asterius-Zentroid (den idealen Stil-Mittelpunkt) und den
+    Intra-Autor-Schwellenwert basierend auf den gesicherten Trainingsdaten.
     """
     df_train = pd.read_csv(train_csv_path)
-
-    # Filtere ausschließlich verifizierte Asterius-Texte aus dem Trainingsset
-    asterius_df = df_train[df_train['Auteur'] == 'asterius']
-    if asterius_df.empty:
-        # Fallback für unterschiedliche Schreibweisen
-        asterius_df = df_train[df_train['Auteur'].str.lower() == 'asterius']
-
-    if asterius_df.empty:
-        raise ValueError(f"Keine echten Asterius-Texte in {train_csv_path} unter der Klasse 'Auteur' gefunden.")
-
     feature_cols = df_train.columns.drop(['Auteur', 'Titre'])
 
-    # Skalieren mit dem im Training gefitteten Scaler
-    X_scaled = scaler.transform(asterius_df[feature_cols])
+    # Nur Asterius-Texte filtern (case-insensitive, um Fehler zu vermeiden)
+    df_asterius = df_train[df_train['Auteur'].str.lower() == 'asterius'].copy()
 
-    model.eval()
+    if df_asterius.empty:
+        raise ValueError("Kritischer Fehler: Keine Asterius-Texte in den Trainingsdaten gefunden.")
+
+    X_ast_scaled = scaler.transform(df_asterius[feature_cols])
+
     with torch.no_grad():
-        X_tensor = torch.FloatTensor(X_scaled)
-        embeddings = model(X_tensor).numpy()
+        ast_embeddings = model(torch.FloatTensor(X_ast_scaled)).numpy()
 
-    # Zentroid (Durchschnittsvektor aller Asterius-Samples) berechnen
-    centroid = np.mean(embeddings, axis=0)
+    # 1. Berechne das Zentroid (den "idealen" Asterius-Stil)
+    asterius_centroid = np.mean(ast_embeddings, axis=0)
 
-    # Schwellenwert berechnen (Maximale euklidische Distanz eines echten Textes zum Zentroid)
-    distances = [distance.euclidean(centroid, emb) for emb in embeddings]
-    max_intra_distance = np.max(distances)
+    # 2. Berechne die Intra-Autor-Distanzen (Schwankungsbreite der gesicherten Texte)
+    distances_to_centroid = [dist.euclidean(emb, asterius_centroid) for emb in ast_embeddings]
 
-    # 15% statistische Toleranz (Margin) hinzufügen, um stilistische Varianz zu erlauben
-    threshold = max_intra_distance * 1.15
+    # 3. Dynamischer Schwellenwert (Maximale Abweichung, die Asterius sich selbst erlaubt)
+    dynamic_threshold = np.max(distances_to_centroid)
 
-    print(f"-> Asterius-Zentroid erfolgreich berechnet.")
-    print(f"-> Empirischer Intra-Autor-Schwellenwert: {threshold:.4f}")
-    return centroid, threshold, feature_cols
+    return asterius_centroid, dynamic_threshold
 
 
-def evaluate_pseudo_corpus(model, scaler, centroid, threshold, feature_cols, pseudo_csv_path, output_csv_path):
-    """
-    Projiziert das Pseudo-Korpus in den Einbettungsraum und evaluiert die Autorschaft.
-    """
-    df_pseudo = pd.read_csv(pseudo_csv_path)
-    titles = df_pseudo['Titre'].values
+def run_inference(train_csv, pseudo_csv, model_path, scaler_path, output_csv):
+    print("--- Schritt 1: Lade Modelle und Metadaten ---")
 
-    # Strukturelles Alignment: Fehlende Features mit 0 auffüllen
-    for col in feature_cols:
-        if col not in df_pseudo.columns:
-            df_pseudo[col] = 0
+    # Korrekter Import über pickle, passend zum Export in run_verification.py
+    with open(scaler_path, "rb") as f:
+        scaler = pickle.load(f)
+    print(f"[OK] Scaler aus '{scaler_path}' geladen.")
 
-    # Reihenfolge der Spalten exakt an den Trainings-Feature-Raum angleichen
-    X_pseudo = df_pseudo[feature_cols]
+    df_train = pd.read_csv(train_csv)
+    feature_cols = df_train.columns.drop(['Auteur', 'Titre'])
 
-    # Transformieren (Z-Standardisierung ohne Re-Fitting)
-    X_scaled = scaler.transform(X_pseudo)
-
+    # Architektur aufbauen und evaluieren
+    model = SiameseTabularNet(input_size=len(feature_cols))
+    model.load_state_dict(torch.load(model_path, weights_only=True))
     model.eval()
-    with torch.no_grad():
-        X_tensor = torch.FloatTensor(X_scaled)
-        embeddings = model(X_tensor).numpy()
+    print(f"[OK] Gewichte geladen. Netzwerkarchitektur erfolgreich importiert.")
 
+    print("\n--- Schritt 2: Generiere Asterius-Referenzprofil (Zentroid) ---")
+    asterius_centroid, dynamic_threshold = compute_asterius_profile(model, scaler, train_csv)
+    print(f"[INFO] Asterius-Zentroid erfolgreich im 64-dimensionalen Raum lokalisiert.")
+    print(f"[INFO] Dynamischer Intra-Autor-Schwellenwert (Threshold): {dynamic_threshold:.4f}")
+
+    print("\n--- Schritt 3: Evaluiere anonymes Pseudo-Chrysostomos-Korpus ---")
+    df_pseudo = pd.read_csv(pseudo_csv)
+
+    # Dynamische Extraktion der Metadaten
+    if 'Auteur' in df_pseudo.columns:
+        pseudo_labels = df_pseudo['Auteur']
+        pseudo_features = df_pseudo.drop(columns=['Auteur', 'Titre'])
+    else:
+        pseudo_labels = df_pseudo['Titre']
+        pseudo_features = df_pseudo.drop(columns=['Titre'])
+
+    titles = df_pseudo['Titre']
+
+    # Skalieren streng nach dem Trainings-Maßstab (Verhinderung von Data Leakage)
+    X_pseudo_scaled = scaler.transform(pseudo_features)
+
+    with torch.no_grad():
+        pseudo_embeddings = model(torch.FloatTensor(X_pseudo_scaled)).numpy()
+
+    print("\n--- Schritt 4: Distanzberechnung und automatisierte Klassifizierung ---")
     results = []
-    for i, emb in enumerate(embeddings):
-        # Euklidische Distanz zum mathematischen Asterius-Profil messen
-        dist = distance.euclidean(centroid, emb)
+    for i, emb in enumerate(pseudo_embeddings):
+        distance = dist.euclidean(emb, asterius_centroid)
 
-        # Entscheidung anhand des Schwellenwerts
-        is_asterius = dist <= threshold
-
-        # Konfidenzmetrik (Je näher am Zentroid, desto valider die Zuschreibung)
-        confidence = max(0, (1 - (dist / threshold))) * 100 if is_asterius else 0.0
+        # Automatisierte Autorschafts-Zuweisung auf Basis der errechneten Schwankungsbreite
+        if distance <= dynamic_threshold:
+            attribution = "Core-Asterius (Sichere Zuweisung)"
+        elif distance <= (dynamic_threshold * 1.25):  # 25% Toleranz für Genre-Rauschen
+            attribution = "Grauzone (Theologisch verwandt / Kompilation)"
+        else:
+            attribution = "Abgewiesen (Fremdautor)"
 
         results.append({
-            'Titre': titles[i],
-            'Distanz_zu_Asterius': round(dist, 4),
-            'Schwellenwert_Limit': round(threshold, 4),
-            'Klassifikation': 'Asterius' if is_asterius else 'Spuria (Fremdautorschaft)',
-            'Konfidenz_%': round(confidence, 2)
+            'Pseudo_Text_Titre': titles.iloc[i],
+            'Original_Klasse': pseudo_labels.iloc[i],
+            'Distance_to_Centroid': distance,
+            'Threshold_Baseline': dynamic_threshold,
+            'Classification': attribution
         })
 
-    results_df = pd.DataFrame(results)
+    # 5. Ergebnisse als DataFrame aufbereiten und speichern
+    df_results = pd.DataFrame(results).sort_values(by='Distance_to_Centroid')
+    df_results.to_csv(output_csv, index=False)
 
-    # Aufsteigende Sortierung (Die stärksten Kandidaten stehen ganz oben)
-    results_df = results_df.sort_values(by='Distanz_zu_Asterius')
-    results_df.to_csv(output_csv_path, index=False)
-
-    hit_count = len(results_df[results_df['Klassifikation'] == 'Asterius'])
-    print(f"-> Evaluation abgeschlossen: {hit_count} von {len(df_pseudo)} Textfragmenten zugeordnet.")
-    print(f"-> Ergebnisbericht gespeichert unter: '{output_csv_path}'")
+    print(f"[OK] Inferenz abgeschlossen. Ergebnisse gespeichert unter: {output_csv}\n")
+    print("Top 5 Kandidaten für eine Autorschaft durch Asterius:")
+    # Ausgabe für die Konsole verschlanken
+    print(df_results[['Pseudo_Text_Titre', 'Distance_to_Centroid', 'Classification']].head(5).to_string(index=False))
 
 
 # =====================================================================
-# 3. AUTOMATISIERTER EINSTIEGSPUNKT (EXECUTION PIPELINE)
+# 3. AUSFÜHRUNGSBLOCK
 # =====================================================================
 if __name__ == "__main__":
-    print("=== STARTE INFERENZ-PHASE ===")
-
-    # Dateipfade definieren (Analog zur README-Vorgabe)
+    # Bitte überprüfe, ob der Dateiname deiner Pseudo-CSV exakt mit diesem übereinstimmt
     TRAIN_CSV = "train_features.csv"
-    INFER_CSV = "inference_features.csv"
-    SCALER_PATH = "scaler.pkl"
-    MODEL_PATH = "siamese_asterius.pth"
-    OUTPUT_CSV = "asterius_candidates.csv"
+    PSEUDO_CSV = "inference_features.csv"
+    MODEL_PTH = "siamese_asterius.pth"
+    SCALER_PKL = "scaler.pkl"
+    OUTPUT_CSV = "asterius_inference_results.csv"
 
-    # Validierung der Existenz kritischer Artefakte
-    if not os.path.exists(SCALER_PATH):
-        raise FileNotFoundError(
-            f"Kritische Datei '{SCALER_PATH}' fehlt. Trainiere das Modell zuerst via run_verification.py!")
-    if not os.path.exists(MODEL_PATH):
-        raise FileNotFoundError(
-            f"Kritische Datei '{MODEL_PATH}' fehlt. Trainiere das Modell zuerst via run_verification.py!")
-    if not os.path.exists(TRAIN_CSV):
-        raise FileNotFoundError(f"Linguistische Matrix '{TRAIN_CSV}' fehlt. Führe erst extract_train_features.py aus!")
-    if not os.path.exists(INFER_CSV):
-        raise FileNotFoundError(f"Linguistische Matrix '{INFER_CSV}' fehlt. Führe erst extract_infer_features.py aus!")
-
-    # 1. Laden des im Training angepassten Scalers
-    fitted_scaler = joblib.load(SCALER_PATH)
-    print(f"[OK] Scaler aus '{SCALER_PATH}' geladen.")
-
-    # 2. Ermittlung der exakten Eingangsdimension
-    df_temp = pd.read_csv(TRAIN_CSV)
-    feature_count = len(df_temp.columns.drop(['Auteur', 'Titre']))
-    print(f"[OK] Eingangsdimension für das neuronale Netzwerk bestimmt: {feature_count} Features.")
-
-    # 3. Modell instanziieren und Gewichte laden
-    model_instance = SiameseTabularNet(input_size=feature_count)
-    model_instance.load_state_dict(torch.load(MODEL_PATH))
-    model_instance.eval()
-    print(f"[OK] Gewichte in SiameseTabularNet geladen. Modell befindet sich im Eval-Modus.")
-
-    # 4. Referenzprofil extrahieren
-    print("\n--- Schritt 1: Generiere Asterius-Referenzprofil (Zentroid) ---")
-    asterius_centroid, dynamic_threshold, aligned_features = compute_asterius_profile(
-        model=model_instance,
-        scaler=fitted_scaler,
-        train_csv_path=TRAIN_CSV
-    )
-
-    # 5. Unbekanntes Pseudo-Korpus klassifizieren
-    print("\n--- Schritt 2: Evaluiere anonymes Pseudo-Chrysostomos-Korpus ---")
-    evaluate_pseudo_corpus(
-        model=model_instance,
-        scaler=fitted_scaler,
-        centroid=asterius_centroid,
-        threshold=dynamic_threshold,
-        feature_cols=aligned_features,
-        pseudo_csv_path=INFER_CSV,
-        output_csv_path=OUTPUT_CSV
-    )
-
-    print("\n=== PIPELINE ERFOLGREICH DURCHLAUFEN ===")
+    run_inference(TRAIN_CSV, PSEUDO_CSV, MODEL_PTH, SCALER_PKL, OUTPUT_CSV)
