@@ -2,10 +2,13 @@ import os
 import re
 import pandas as pd
 import json
+import numpy as np
 from collections import Counter
 from nltk.util import ngrams
 import spacy
 from bs4 import BeautifulSoup
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
 
 # NLP-Pipeline laden und Sentencizer sicherstellen
 spacy.prefer_gpu()
@@ -40,6 +43,48 @@ ELISION_MAP = {
 }
 
 
+# --- Zitat-Filterungs-Funktionen ---
+
+def load_bible_reference(filepath="greek_bible.txt"):
+    """Lädt die Septuaginta/GNT und erstellt eine TF-IDF-Matrix auf Character-N-Gramm-Basis."""
+    print(f"Lade Bibel-Referenzkorpus für Zitat-Filterung aus '{filepath}'...")
+
+    if not os.path.exists(filepath):
+        print(f"[Warnung] Bibel-Referenzdatei '{filepath}' nicht gefunden. Zitat-Filterung wird übersprungen.")
+        return None, None
+
+    with open(filepath, 'r', encoding='utf-8') as f:
+        bible_verses = f.readlines()
+
+    # Nutzung von Character-N-Grams (3 bis 5 Zeichen), robust gegen Flexionen
+    vectorizer = TfidfVectorizer(analyzer='char_wb', ngram_range=(3, 5), min_df=2)
+    bible_matrix = vectorizer.fit_transform(bible_verses)
+
+    print("Bibel-Referenzkorpus erfolgreich geladen und vektorisiert.")
+    return vectorizer, bible_matrix
+
+
+def is_bible_quote(sentence_text, vectorizer, bible_matrix, threshold=0.45):
+    """Prüft via Kosinus-Ähnlichkeit, ob ein Satz ein Bibelzitat enthält."""
+    if vectorizer is None or bible_matrix is None:
+        return False
+
+    # Zu kurze Sätze (unter 4 Wörtern) ignorieren wir (False Positives vermeiden)
+    if len(sentence_text.split()) < 4:
+        return False
+
+    # Vektorisiere den aktuellen Satz
+    sent_vec = vectorizer.transform([sentence_text])
+
+    # Berechne die maximale Kosinus-Ähnlichkeit gegen alle Bibelverse
+    max_sim = np.max(cosine_similarity(sent_vec, bible_matrix))
+
+    return max_sim > threshold
+
+
+# ----------------------------------------
+
+
 def extract_text(filepath):
     """Liest Text ein und bereinigt ihn unter Beibehaltung der Interpunktion für NLP."""
     with open(filepath, 'r', encoding='utf-8') as f:
@@ -69,6 +114,9 @@ def process_training_corpus(input_dirs, output_csv, vocab_json):
     sample_records = []
     global_counts = {'words': Counter(), 'pos': Counter(), 'morph': Counter()}
 
+    # --- NEU: Vektorisierung der Bibel vor Beginn der Iteration ---
+    bible_vectorizer, bible_matrix = load_bible_reference("greek_bible.txt")
+
     # Durchsuche das definierte Trainingskorpus
     for folder in input_dirs:
         if not os.path.exists(folder):
@@ -94,6 +142,12 @@ def process_training_corpus(input_dirs, output_csv, vocab_json):
 
             # Iteration auf syntaktischer Ebene (Satz für Satz)
             for sent in doc.sents:
+
+                # --- NEU: Zitat-Prüfung auf Satz-Ebene ---
+                # Wenn der Satz dem Bibelkorpus zu ähnlich ist, überspringen wir ihn komplett
+                if is_bible_quote(sent.text, bible_vectorizer, bible_matrix, threshold=0.45):
+                    continue
+
                 valid_tokens = [t for t in sent if not t.is_punct and not t.is_space]
                 if not valid_tokens:
                     continue
