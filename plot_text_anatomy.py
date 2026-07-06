@@ -74,6 +74,6 @@ if __name__ == "__main__":
     
     # Trage hier den exakten Basisnamen eines Textes ein, der aus mehreren Segmenten besteht.
     # Beispiel: Wenn du den Verlauf von CPG4618 sehen willst:
-    ZIELDOKUMENT = "CPG4610_InPaschaSermo5"
+    ZIELDOKUMENT = "AsteriusIgnotus_InPsalmum18"
     
     analyze_text_anatomy(INFERENCE_CSV, ZIELDOKUMENT)
