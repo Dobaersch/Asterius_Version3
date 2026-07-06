@@ -1,5 +1,7 @@
-# Authorship Verification: Pseudo-Chrysostom vs. Asterius of Amaseia
-
+=============================================================================
+STYLOMETRIC AUTHORSHIP VERIFICATION
+(Asterius of Amasea vs. Pseudo-Chrysostom)
+=============================================================================
 ## Project Description
 This Digital Humanities project applies computational stylometry and deep learning (metric learning) to investigate the authorship of the late antique Greek sermon corpus. Specifically, it examines which of the texts transmitted anonymously or under the name of John Chrysostom (*Pseudo-Chrysostom*) exhibit a stylistic signature consistent with the authenticated works of **Asterius of Amaseia**.
 
@@ -9,35 +11,32 @@ By extracting high-dimensional linguistic features and training an artificial Si
 
 ## Methodological Pipeline
 
-The architecture is divided into six sequential phases:
+The scripts must be executed in the exact order specified below to avoid dimensional errors in the vectors:
 
-### 1. Feature Extraction (`extract_train_features.py`)
-The Ancient Greek source texts (TEI-XML or TXT) are cleaned, stripped of modern punctuation, and divided into standardized text segments (~1000 words). Utilizing the transformer-based language model `grc_odycy_joint_trf` (OdyCy), the pipeline extracts three morphosyntactic feature levels:
-* Lemmatized function words (MFWs) to capture unconscious syntactic patterns.
-* Part-of-Speech (POS) trigrams to map sentence structure.
-* Morphological affixes to measure inflectional rhythm.
+PHASE 1: Feature Engineering of the Reference Corpus (Training)
+- Script: extract_train_features.py
+- Action: Extracts the raw texts of the verified authors, cleans them, splits them into 1000-token samples, and processes them with 'grc_odycy_joint_trf' (spaCy).
+- Output: train_features.csv (quantified features such as MFW, POS trigrams, affixes).
 
-### 2. Model Training (`run_verification.py`)
-The high-dimensional feature matrix (`train_features.csv`) is processed.
-* **Preventing Overfitting:** The data is split into a training set (80%) and a validation set (20%), stratified by author classes.
-* **Preventing Data Leakage:** The `StandardScaler` is fitted exclusively on the training set and passively transforms the validation set.
-* **Architecture:** A Multi-Layer Perceptron (MLP) projects the data into a 64-dimensional embedding space, optimized via a `TripletMarginLoss` with Hard Negative Mining (control authors: Chrysostom, Severian). The script exports the learned model weights (`siamese_asterius.pth`) and the fitted scaler (`scaler.pkl`).
+PHASE 2: Model Training and Baseline Calculation
+- Script: run_verification.py (and optionally validate_embeddings.py)
+- Action: Trains the Siamese Network using triplet mining based on train_features.csv.
+- Output: Saved model weights (.pth file), standardization scaler (.pkl file), and the established intra-author baseline.
 
-### 3. Vector Space Validation (`validate_embeddings.py`)
-Prior to inference on unknown texts, this script loads the persisted weights and scaler to reduce the learned embedding space via PCA (global variance) and t-SNE (local neighborhoods). It generates the visual proof `embedding_validation.png`. The training is considered philologically valid if the authenticated Asterius texts form a dense, cohesive vector island, distinctly separated from the control authors.
+PHASE 3: Feature Engineering of the Pseudo-Corpus (Inference)
+- Script: extract_infer_features.py
+- Action: Applies the exact same tokenization and extraction (restricted to the learned top features) to the Pseudo-Chrysostom corpus.
+- Output: Inference CSV file with dimensions exactly matching the training matrix.
 
-### 4. Metric Inference (`infer_pseudo_corpus.py`)
-The unlabeled Pseudo-Chrysostom corpus is projected into the calibrated vector space.
-* The script calculates the exact geometric center (centroid) of the Asterius style.
-* It defines a **dynamic intra-author baseline (threshold)** based on the maximum internal deviation of the authenticated Asterius dataset.
-* Each anonymous text segment is automatically classified as: *Core-Asterius* (within the threshold), *Gray Zone* (theoretical tolerance margin for genre noise), or *Rejected*.
+PHASE 4: Inference and Attribution
+- Scripts: infer_pseudo_corpus.py (followed by aggregate_results.py)
+- Action: Loads the .pth and .pkl files, calculates pairwise stylistic distances between Pseudo-samples and Asterius.
+- Output: asterius_results_raw_distances.csv (sample level) and asterius_aggregated_distances.csv (document level).
 
-### 5. Document Aggregation (`aggregate_results.py`)
-Because the inference operates on 1000-word samples for statistical stability, this script handles the post-processing. Using regular expressions, it aggregates the segmented results back to the document level. It calculates the **Asterius Match Percentage** (the percentage of a text's segments that fall within the Asterius cluster) and exports the final synthesis `asterius_final_document_scores.csv`.
-
-### 6. Publication Visualization (`plot_final_results.py`)
-This script processes the aggregated data for academic publication. It generates a *Diverging Bar Chart* (`attribution_diverging_bar.png`) in high print quality (300 DPI), visually juxtaposing the mean Euclidean distance of the relevant texts against the critical red demarcation line of the intra-author threshold.
-
+PHASE 5: Visualization and Demonstration
+- Script 1: plot_final_results.py (Generates diverging bar charts of the distances against the threshold).
+- Script 2: plot_text_anatomy.py (Creates a stylistic text progression for borderline cases to identify compilations).
+- Script 3: plot_3d_vectorspace.py (Calculates t-SNE clustering for an interactive HTML representation of the high-dimensional space).
 ---
 
 ## Installation & Execution
