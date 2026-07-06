@@ -75,12 +75,12 @@ def run_inference(train_csv, pseudo_csv, model_path, scaler_path, output_csv):
     # Dynamische Extraktion der Metadaten
     if 'Auteur' in df_pseudo.columns:
         pseudo_labels = df_pseudo['Auteur']
-        pseudo_features = df_pseudo.drop(columns=['Auteur', 'Titre'])
     else:
-        pseudo_labels = df_pseudo['Titre']
-        pseudo_features = df_pseudo.drop(columns=['Titre'])
+        pseudo_labels = pd.Series(["Unbekannt"] * len(df_pseudo))
 
     titles = df_pseudo['Titre']
+
+    pseudo_features = df_pseudo.reindex(columns=feature_cols, fill_value=0)
 
     # Skalieren streng nach dem Trainings-Maßstab (Verhinderung von Data Leakage)
     X_pseudo_scaled = scaler.transform(pseudo_features)
@@ -101,16 +101,21 @@ def run_inference(train_csv, pseudo_csv, model_path, scaler_path, output_csv):
         else:
             attribution = "Abgewiesen (Fremdautor)"
 
+
         results.append({
-            'Pseudo_Text_Titre': titles.iloc[i],
+            'ComparatorClass': 'Asterius',
+            'ComparedLabel': titles.iloc[i],
+            'Distance': distance,
             'Original_Klasse': pseudo_labels.iloc[i],
-            'Distance_to_Centroid': distance,
             'Threshold_Baseline': dynamic_threshold,
             'Classification': attribution
         })
 
     # 5. Ergebnisse als DataFrame aufbereiten und speichern
-    df_results = pd.DataFrame(results).sort_values(by='Distance_to_Centroid')
+    df_results = pd.DataFrame(results).sort_values(by='Distance')
+
+    # Hinweis: Wenn output_csv in main() "asterius_inference_results.csv" heißt,
+    # muss aggregate_results.py diesen Dateinamen beim Laden (pd.read_csv) nutzen!
     df_results.to_csv(output_csv, index=False)
 
     print(f"[OK] Inferenz abgeschlossen. Ergebnisse gespeichert unter: {output_csv}\n")
