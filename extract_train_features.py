@@ -44,7 +44,6 @@ ELISION_MAP = {
 
 
 # --- Zitat-Filterungs-Funktionen ---
-
 def load_bible_reference(filepath="greek_bible.txt"):
     """Lädt die Septuaginta/GNT und erstellt eine TF-IDF-Matrix auf Character-N-Gramm-Basis."""
     print(f"Lade Bibel-Referenzkorpus für Zitat-Filterung aus '{filepath}'...")
@@ -56,7 +55,6 @@ def load_bible_reference(filepath="greek_bible.txt"):
     with open(filepath, 'r', encoding='utf-8') as f:
         bible_verses = f.readlines()
 
-    # Nutzung von Character-N-Grams (3 bis 5 Zeichen), robust gegen Flexionen
     vectorizer = TfidfVectorizer(analyzer='char_wb', ngram_range=(3, 5), min_df=2)
     bible_matrix = vectorizer.fit_transform(bible_verses)
 
@@ -69,14 +67,10 @@ def is_bible_quote(sentence_text, vectorizer, bible_matrix, threshold=0.45):
     if vectorizer is None or bible_matrix is None:
         return False
 
-    # Zu kurze Sätze (unter 4 Wörtern) ignorieren wir (False Positives vermeiden)
     if len(sentence_text.split()) < 4:
         return False
 
-    # Vektorisiere den aktuellen Satz
     sent_vec = vectorizer.transform([sentence_text])
-
-    # Berechne die maximale Kosinus-Ähnlichkeit gegen alle Bibelverse
     max_sim = np.max(cosine_similarity(sent_vec, bible_matrix))
 
     return max_sim > threshold
@@ -84,16 +78,13 @@ def is_bible_quote(sentence_text, vectorizer, bible_matrix, threshold=0.45):
 
 # ----------------------------------------
 
-
 def extract_text(filepath):
     """Liest Text ein und bereinigt ihn unter Beibehaltung der Interpunktion für NLP."""
     with open(filepath, 'r', encoding='utf-8') as f:
         raw_text = BeautifulSoup(f, 'lxml-xml').get_text(separator=' ') if filepath.endswith(".xml") else f.read()
 
-    # REGEX-FILTER: Behält griechische Buchstaben UND notwendige Interpunktion (.,;··!?) für die Syntaxanalyse.
+    # REGEX-FILTER: Behält griechische Buchstaben UND notwendige Interpunktion (.,;··!?)
     clean_text = re.sub(r'[^\u0370-\u03FF\u1F00-\u1FFF\s\.,;··!\?]', ' ', raw_text)
-
-    # Mehrfache Leerzeichen durch ein einziges ersetzen
     clean_text = re.sub(r'\s+', ' ', clean_text)
 
     return clean_text.strip()
@@ -114,10 +105,8 @@ def process_training_corpus(input_dirs, output_csv, vocab_json):
     sample_records = []
     global_counts = {'words': Counter(), 'pos': Counter(), 'morph': Counter()}
 
-    # --- NEU: Vektorisierung der Bibel vor Beginn der Iteration ---
     bible_vectorizer, bible_matrix = load_bible_reference("greek_bible.txt")
 
-    # Durchsuche das definierte Trainingskorpus
     for folder in input_dirs:
         if not os.path.exists(folder):
             print(f"[Warnung] Verzeichnis nicht gefunden: {folder}")
@@ -131,7 +120,6 @@ def process_training_corpus(input_dirs, output_csv, vocab_json):
             if not text:
                 continue
 
-            # NLP Parsing des gesamten Dokuments (Sentencizer ist aktiv)
             doc = nlp(text)
 
             current_w = Counter()
@@ -140,11 +128,7 @@ def process_training_corpus(input_dirs, output_csv, vocab_json):
             current_length = 0
             chunk_index = 0
 
-            # Iteration auf syntaktischer Ebene (Satz für Satz)
             for sent in doc.sents:
-
-                # --- NEU: Zitat-Prüfung auf Satz-Ebene ---
-                # Wenn der Satz dem Bibelkorpus zu ähnlich ist, überspringen wir ihn komplett
                 if is_bible_quote(sent.text, bible_vectorizer, bible_matrix, threshold=0.45):
                     continue
 
@@ -152,7 +136,6 @@ def process_training_corpus(input_dirs, output_csv, vocab_json):
                 if not valid_tokens:
                     continue
 
-                # Token-Eigenschaften extrahieren
                 for t in valid_tokens:
                     lemma = normalize_greek_token(t)
                     if lemma in GREEK_FUNCTION_WORDS_LEMMATA:
@@ -165,9 +148,7 @@ def process_training_corpus(input_dirs, output_csv, vocab_json):
 
                 current_length += len(valid_tokens)
 
-                # Chunk schließen, sobald ~1000 Wörter erreicht sind (Satzende gewahrt)
                 if current_length >= 1000:
-                    # POS-Trigramme über den gesamten, syntaktisch intakten Chunk berechnen
                     p_c = Counter(list(ngrams(current_p_tags, 3)))
 
                     global_counts['words'].update(current_w)
@@ -182,15 +163,18 @@ def process_training_corpus(input_dirs, output_csv, vocab_json):
                         "m": current_m
                     })
 
-                    # Reset für den nächsten Chunk
                     current_w = Counter()
                     current_p_tags = []
                     current_m = Counter()
                     current_length = 0
                     chunk_index += 1
 
-            # Letzten Rest-Chunk verarbeiten, falls er statistisch belastbar ist (> 500 Wörter)
-            if current_length >= 500:
+            # Letzten Rest-Chunk oder kurzes Gesamtdokument verarbeiten
+            if current_length >= 500 or (chunk_index == 0 and current_length >= 100):
+                if chunk_index == 0 and current_length < 500:
+                    print(
+                        f"[Methodische Warnung] Text '{filename}' (Training) ist mit {current_length} Tokens extrem kurz. Stilometrische Resultate sind hier statistisch instabil!")
+
                 p_c = Counter(list(ngrams(current_p_tags, 3)))
                 global_counts['words'].update(current_w)
                 global_counts['pos'].update(p_c)
@@ -208,16 +192,13 @@ def process_training_corpus(input_dirs, output_csv, vocab_json):
         print("[Fehler] Es konnten keine Features extrahiert werden. Trainingskorpus leer?")
         return
 
-    # Ermittle Top Features (Top 100 Lemmata, Top 100 POS, Top 100 Morph)
     top_words = [w for w, _ in global_counts['words'].most_common(100)]
     top_pos = [f"{p[0]}_{p[1]}_{p[2]}" for p, _ in global_counts['pos'].most_common(100)]
     top_morph = [m for m, _ in global_counts['morph'].most_common(100)]
 
-    # SPEICHERN des Vokabulars für das Inferenz-Skript
     with open(vocab_json, 'w', encoding='utf-8') as f:
         json.dump({'words': top_words, 'pos': top_pos, 'morph': top_morph}, f)
 
-    # Matrix bauen
     all_features = []
     for r in sample_records:
         row = {"Auteur": r["author"], "Titre": r["title"]}
@@ -225,7 +206,6 @@ def process_training_corpus(input_dirs, output_csv, vocab_json):
         for w in top_words:
             row[f"LEMMA_{w}"] = r["w"].get(w, 0)
 
-        # Format POS-Tuple zu String für die Wörterbuchabfrage
         pos_dict = {f"{k[0]}_{k[1]}_{k[2]}": v for k, v in r["p"].items()}
         for p in top_pos:
             row[f"POS_{p}"] = pos_dict.get(p, 0)
@@ -235,7 +215,6 @@ def process_training_corpus(input_dirs, output_csv, vocab_json):
 
         all_features.append(row)
 
-    # DataFrame exportieren
     df = pd.DataFrame(all_features).fillna(0)
     df.to_csv(output_csv, index=False)
     print(f"Training Features erfolgreich extrahiert und gespeichert in: {output_csv}")

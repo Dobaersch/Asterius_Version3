@@ -10,7 +10,7 @@ from bs4 import BeautifulSoup
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
-# 1. NLP-Modell laden und Sentencizer sicherstellen
+# NLP-Modell laden und Sentencizer sicherstellen
 spacy.prefer_gpu()
 nlp = spacy.load("grc_odycy_joint_trf")
 nlp.max_length = 2000000
@@ -18,7 +18,7 @@ nlp.max_length = 2000000
 if "sentencizer" not in nlp.pipe_names:
     nlp.add_pipe("sentencizer")
 
-# 2. Globale Konstanten
+# Globale Konstanten
 GREEK_FUNCTION_WORDS_LEMMATA = {
     "καί", "δέ", "τε", "ἀλλά", "ἤ", "γάρ", "οὖν", "ἄρα", "διό",
     "ἵνα", "ὅπως", "ὡς", "ὥστε", "ὅτι", "εἰ", "ἐάν", "ἐπεί", "ἐπειδή",
@@ -42,8 +42,7 @@ ELISION_MAP = {
 }
 
 
-# --- NEU: Zitat-Filterungs-Funktionen ---
-
+# --- Zitat-Filterungs-Funktionen ---
 def load_bible_reference(filepath="greek_bible.txt"):
     print(f"Lade Bibel-Referenzkorpus für Zitat-Filterung aus '{filepath}'...")
     if not os.path.exists(filepath):
@@ -74,13 +73,10 @@ def is_bible_quote(sentence_text, vectorizer, bible_matrix, threshold=0.45):
 
 # ----------------------------------------
 
-
 def extract_text(filepath):
-    """Liest Text ein und bereinigt ihn unter Beibehaltung der Interpunktion für NLP."""
     with open(filepath, 'r', encoding='utf-8') as f:
         raw_text = BeautifulSoup(f, 'lxml-xml').get_text(separator=' ') if filepath.endswith(".xml") else f.read()
 
-    # REGEX-FILTER: Behält griechische Buchstaben UND notwendige Interpunktion (.,;··!?)
     clean_text = re.sub(r'[^\u0370-\u03FF\u1F00-\u1FFF\s\.,;··!\?]', ' ', raw_text)
     clean_text = re.sub(r'\s+', ' ', clean_text)
 
@@ -88,7 +84,6 @@ def extract_text(filepath):
 
 
 def normalize_greek_token(token):
-    """Sichert die Lemmatisierung gegen Elisionen und Krasis ab."""
     lemma = token.lemma_.lower() if token.lemma_ else token.text.lower()
     text_lower = token.text.lower()
 
@@ -99,7 +94,6 @@ def normalize_greek_token(token):
 
 
 def process_inference_corpus(input_dir, output_csv, vocab_json):
-    """Extrahiert Features und erzwingt das Einpassen in das starre Vokabular des Trainings."""
     if not os.path.exists(vocab_json):
         raise FileNotFoundError(f"Vokabular-Datei '{vocab_json}' fehlt. Führe erst extract_train_features.py aus!")
 
@@ -110,7 +104,6 @@ def process_inference_corpus(input_dir, output_csv, vocab_json):
     top_pos = vocab['pos']
     top_morph = vocab['morph']
 
-    # Bibel laden
     bible_vectorizer, bible_matrix = load_bible_reference("greek_bible.txt")
 
     sample_records = []
@@ -124,7 +117,6 @@ def process_inference_corpus(input_dir, output_csv, vocab_json):
         if not text:
             continue
 
-        # Syntax-Parsing
         doc = nlp(text)
 
         current_w = Counter()
@@ -133,10 +125,8 @@ def process_inference_corpus(input_dir, output_csv, vocab_json):
         current_length = 0
         chunk_index = 0
 
-        # Iteration auf syntaktischer Ebene (identisch zum Trainings-Skript)
         for sent in doc.sents:
 
-            # --- Zitat-Prüfung ---
             if is_bible_quote(sent.text, bible_vectorizer, bible_matrix, threshold=0.45):
                 continue
 
@@ -156,11 +146,9 @@ def process_inference_corpus(input_dir, output_csv, vocab_json):
 
             current_length += len(valid_tokens)
 
-            # Chunk-Grenze prüfen (ca. 1000 Wörter, aber mit gewahrtem Satzende)
             if current_length >= 1000:
                 p_c = Counter(list(ngrams(current_p_tags, 3)))
 
-                # Erstellen der Matrix-Zeile (gemappt auf Trainings-Vokabular)
                 row = {"Auteur": "Pseudo", "Titre": f"{filename}_{chunk_index}"}
 
                 for w in top_words:
@@ -175,15 +163,18 @@ def process_inference_corpus(input_dir, output_csv, vocab_json):
 
                 sample_records.append(row)
 
-                # Reset für den nächsten Chunk
                 current_w = Counter()
                 current_p_tags = []
                 current_m = Counter()
                 current_length = 0
                 chunk_index += 1
 
-        # Letzten Rest-Chunk verarbeiten, falls er > 500 Tokens hat
-        if current_length >= 500:
+        # Letzten Rest-Chunk oder kurzes Gesamtdokument verarbeiten
+        if current_length >= 500 or (chunk_index == 0 and current_length >= 100):
+            if chunk_index == 0 and current_length < 500:
+                print(
+                    f"[Methodische Warnung] Text '{filename}' (Inferenz) ist mit {current_length} Tokens extrem kurz. Stilometrische Resultate sind hier statistisch instabil!")
+
             p_c = Counter(list(ngrams(current_p_tags, 3)))
 
             row = {"Auteur": "Pseudo", "Titre": f"{filename}_{chunk_index}"}
@@ -197,7 +188,6 @@ def process_inference_corpus(input_dir, output_csv, vocab_json):
 
             sample_records.append(row)
 
-    # DataFrame speichern
     pd.DataFrame(sample_records).fillna(0).to_csv(output_csv, index=False)
     print(f"-> Inference Features formatiert und gespeichert in '{output_csv}'")
 
@@ -207,7 +197,6 @@ if __name__ == "__main__":
     OUTPUT_FILE = "inference_features.csv"
     VOCAB_FILE = "top_features_vocabulary.json"
 
-    # Sicherheitsprüfung für den Ordner
     if not os.path.exists(INFERENCE_FOLDER):
         os.makedirs(INFERENCE_FOLDER)
         print(f"Ordner '{INFERENCE_FOLDER}' existierte nicht und wurde angelegt. Bitte Texte dort ablegen.")
