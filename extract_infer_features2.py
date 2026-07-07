@@ -42,17 +42,38 @@ def read_file_safely(file_path):
             continue
     raise ValueError(f"Konnte nicht decodiert werden. Letzter Fehler: {last_error}")
 
+
 def clean_text(text, filename):
-    """Dynamisches Parsing je nach Dateiformat"""
+    """
+    Dynamisches Parsing für heterogene Korpora: Repariert XML-Fragmente
+    und entfernt englischsprachige Metadaten (teiHeader).
+    """
     if filename.lower().endswith('.xml'):
+        # 1. Entferne eventuelle XML-Deklarationen, die den Wrapper stören würden
+        text = re.sub(r'<\?xml.*?\?>', '', text).strip()
+
+        # 2. Künstlicher Root-Knoten (<document>) repariert fragmentarische
+        # XML-Dateien (wie Basilius), damit der Parser nicht abstürzt.
+        wrapped_text = f"<document>{text}</document>"
+
         try:
-            text = BeautifulSoup(text, "xml").get_text(separator=' ')
+            soup = BeautifulSoup(wrapped_text, "xml")
+
+            # 3. Projekt-Optimierung: TEI-Header (Metadaten) restlos löschen,
+            # da diese sonst die syntaktische Trigramm-Statistik verfälschen!
+            for header in soup.find_all('teiHeader'):
+                header.decompose()
+
+            text = soup.get_text(separator=' ')
         except Exception:
+            # Fallback
             text = re.sub(r'<[^>]+>', ' ', text)
     else:
-        # Bei .txt Dateien eckige Klammern entfernen, Rest behalten
+        # Bei .txt Dateien entfernen wir nur die eckigen Klammern (Konjekturen),
+        # damit rekonstruierte Wörter (z.B. <θεὸς>) philologisch erhalten bleiben.
         text = text.replace('<', '').replace('>', '')
-        
+
+    # Bereinige doppelte Leerzeichen und Zeilenumbrüche
     text = re.sub(r'\s+', ' ', text)
     return text.strip()
 
