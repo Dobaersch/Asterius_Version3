@@ -63,7 +63,7 @@ class PatristicTripletDataset(Dataset):
         # Addiere leichtes Gaußsches Rauschen während des Trainings,
         # um Overfitting/Memorisation mathematisch unmöglich zu machen.
         if self.is_train:
-            noise_factor = 0.05
+            noise_factor = 0.01
             anchor = anchor + np.random.normal(0, noise_factor, anchor.shape)
             positive = positive + np.random.normal(0, noise_factor, positive.shape)
             negative = negative + np.random.normal(0, noise_factor, negative.shape)
@@ -72,21 +72,20 @@ class PatristicTripletDataset(Dataset):
 
 
 class SiameseTabularNet(nn.Module):
-    """Mikro-Architektur, um Auswendiglernen bei extrem kleinen Datensätzen zu verhindern."""
     def __init__(self, input_dim):
         super(SiameseTabularNet, self).__init__()
         self.network = nn.Sequential(
-            nn.Linear(input_dim, 16),
-            nn.BatchNorm1d(16),
+            nn.Linear(input_dim, 32),
+            nn.BatchNorm1d(32),
             nn.ReLU(),
-            nn.Dropout(0.4),
+            nn.Dropout(0.2),
 
-            nn.Linear(16, 8)
+            nn.Linear(32, 16),
+            nn.Tanh()
         )
 
     def forward(self, x):
         return self.network(x)
-
 
 class TripletLoss(nn.Module):
     """Berechnet den Hinge-Loss zwischen Anchor, Positive und Negative."""
@@ -155,10 +154,10 @@ def train_siamese_network(csv_path, epochs=50, batch_size=16, learning_rate=0.00
     val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
     # Initialisierung
-    input_dim = len(pca_cols)  # Das Netz hat nun einen extrem reduzierten Input!
+    input_dim = len(pca_cols)
     model = SiameseTabularNet(input_dim).to(device)
-    criterion = TripletLoss(margin=1.0)
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=1e-3)
+    criterion = TripletLoss(margin=0.5)
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.002, weight_decay=1e-4)
 
     print("\n--- Starte Epochen ---")
     for epoch in range(epochs):
