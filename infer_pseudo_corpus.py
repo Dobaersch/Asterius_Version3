@@ -26,7 +26,7 @@ def compute_asterius_profile(model, scaler, pca, train_csv_path):
 
     asterius_centroid = np.mean(ast_embeddings, axis=0)
     distances_to_centroid = [dist.euclidean(emb, asterius_centroid) for emb in ast_embeddings]
-    dynamic_threshold = np.mean(distances_to_centroid) + 2 * np.std(distances_to_centroid)
+    dynamic_threshold = np.mean(distances_to_centroid) + 0.5 * np.std(distances_to_centroid)
 
     return asterius_centroid, dynamic_threshold, X_ast_raw.values, feature_cols
 
@@ -39,7 +39,8 @@ def run_inference(train_csv, pseudo_csv, model_path, scaler_path, pca_path, outp
         pca = pickle.load(f)
 
     pseudo_features_df = pd.read_csv(pseudo_csv)
-    feature_cols = pseudo_features_df.columns.drop(['Auteur', 'Titre'])
+    df_train_reference = pd.read_csv(train_csv)
+    feature_cols = df_train_reference.columns.drop(['Auteur', 'Titre'])
 
     # Das Modell erwartet nur noch die komprimierte Dimension (z.B. 15 oder weniger)
     input_dim = pca.n_components_
