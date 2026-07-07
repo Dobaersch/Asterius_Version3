@@ -10,7 +10,7 @@ import warnings
 from run_verification import SiameseTabularNet
 
 warnings.simplefilter(action='ignore', category=FutureWarning)
-
+warnings.filterwarnings("ignore", category=UserWarning)
 
 def compute_asterius_profile(model, scaler, pca, train_csv_path):
     df_train = pd.read_csv(train_csv_path)
@@ -44,7 +44,7 @@ def run_inference(train_csv, pseudo_csv, model_path, scaler_path, pca_path, outp
     # Das Modell erwartet nur noch die komprimierte Dimension (z.B. 15 oder weniger)
     input_dim = pca.n_components_
     model = SiameseTabularNet(input_dim)
-    model.load_state_dict(torch.load(model_path))
+    model.load_state_dict(torch.load(model_path, weights_only=True))
     model.eval()
 
     print("\n--- Schritt 2: Berechne Asterius-Referenzprofil (Centroid) ---")
