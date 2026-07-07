@@ -2,9 +2,7 @@ import os
 import re
 import pandas as pd
 import json
-import numpy as np
 from collections import Counter
-from nltk.util import ngrams
 import spacy
 from bs4 import BeautifulSoup
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -24,167 +22,147 @@ GREEK_FUNCTION_WORDS_LEMMATA = {
     "ἵνα", "ὅπως", "ὡς", "ὥστε", "ὅτι", "εἰ", "ἐάν", "ἐπεί", "ἐπειδή",
     "οὔτε", "μήτε", "οὐδέ", "μηδέ", "πλήν", "ἐν", "εἰς", "ἐκ", "ἐξ",
     "πρός", "ἐπί", "διά", "κατά", "μετά", "παρά", "ἀπό", "ὑπέρ", "ὑπό",
-    "περί", "ἀντί", "πρό", "σύν", "ἄνευ", "ἕνεκα", "μέχρι", "ἄχρι",
-    "μέν", "ἄν", "γε", "δή", "τοι", "που", "πως", "ποτέ", "ἔτι",
-    "ἤδη", "νῦν", "οὕτως", "ὧδε", "πάνυ", "μάλιστα", "οὐ", "μή",
-    "οὐκ", "οὐχ", "οὐχί", "μηκέτι", "οὐκέτι", "ὁ", "ἡ", "τό",
-    "ἐγώ", "σύ", "αὐτός", "ὅς", "ὅστις", "οὗτος", "ἐκεῖνος",
-    "ὅδε", "τίς", "τις", "ἑαυτοῦ", "ἀλλήλων", "τοιοῦτος", "τοσοῦτος",
-    "εἰμί", "γίγνομαι", "ἔχω"
-}
-
-ELISION_MAP = {
-    "ἀλλ'": "ἀλλά", "δι'": "διά", "κατ'": "κατά", "μεθ'": "μετά",
-    "μετ'": "μετά", "παρ'": "παρά", "ἐπ'": "ἐπί", "ἐφ'": "ἐπί",
-    "ὑπ'": "ὑπό", "ὑφ'": "ὑπό", "ἀπ'": "ἀπό", "ἀφ'": "ἀπό",
-    "ἀντ'": "ἀντί", "ἀνθ'": "ἀντί", "οὐκ": "οὐ", "οὐχ": "οὐ",
-    "τ'": "τε", "δ'": "δέ", "γ'": "γε", "μ'": "με"
+    "περί", "ἀντί", "πρό", "σύν", "ἄνευ", "ἕνεκα"
 }
 
 
-# --- Zitat-Filterungs-Funktionen ---
-def load_bible_reference(filepath="greek_bible.txt"):
-    print(f"Lade Bibel-Referenzkorpus für Zitat-Filterung aus '{filepath}'...")
-    if not os.path.exists(filepath):
-        print(f"[Warnung] Bibel-Referenzdatei '{filepath}' nicht gefunden. Zitat-Filterung wird übersprungen.")
+def clean_text(text):
+    """
+    Dynamische Textbereinigung: Nutzt den XML-Parser nur für tatsächliche XML-Daten,
+    um reine .txt-Dokumente (wie die Asterius-Referenzen) nicht zu löschen.
+    """
+    if '<' in text and '>' in text:
+        try:
+            text = BeautifulSoup(text, "xml").get_text()
+        except Exception:
+            # Notfall-Fallback, falls das XML stark beschädigt ist
+            text = re.sub(r'<[^>]+>', ' ', text)
+
+    text = re.sub(r'\s+', ' ', text)
+    return text.strip()
+
+def build_bible_vectorizer(bible_path="greek_bible.txt"):
+    if not os.path.exists(bible_path):
+        print(f"[Warnung] Bibel-Referenztext '{bible_path}' nicht gefunden. Zitat-Filterung ist inaktiv.")
         return None, None
 
-    with open(filepath, 'r', encoding='utf-8') as f:
-        bible_verses = f.readlines()
+    with open(bible_path, 'r', encoding='utf-8') as f:
+        bible_text = f.read()
 
-    vectorizer = TfidfVectorizer(analyzer='char_wb', ngram_range=(3, 5), min_df=2)
-    bible_matrix = vectorizer.fit_transform(bible_verses)
-    print("Bibel-Referenzkorpus erfolgreich geladen und vektorisiert.")
-    return vectorizer, bible_matrix
+    # Reine Text-Bereinigung (ohne XML-Parser), da es sich um eine .txt-Datei handelt
+    bible_text = re.sub(r'\s+', ' ', bible_text).strip()
 
+    bible_sentences = re.split(r'[.·;]+', bible_text)
+    bible_sentences = [s.strip() for s in bible_sentences if len(s.strip()) > 10]
 
-def is_bible_quote(sentence_text, vectorizer, bible_matrix, threshold=0.45):
-    if vectorizer is None or bible_matrix is None:
-        return False
+    # Sicherheits-Check: Verhindert den 'empty vocabulary' Fehler
+    if not bible_sentences:
+        print(f"[Warnung] Die Datei '{bible_path}' enthält keine verwertbaren Sätze. Zitat-Filterung ist inaktiv.")
+        return None, None
 
-    if len(sentence_text.split()) < 4:
-        return False
-
-    sent_vec = vectorizer.transform([sentence_text])
-    max_sim = np.max(cosine_similarity(sent_vec, bible_matrix))
-
-    return max_sim > threshold
+    vectorizer = TfidfVectorizer(analyzer='char', ngram_range=(3, 5))
+    bible_tfidf = vectorizer.fit_transform(bible_sentences)
+    return vectorizer, bible_tfidf
 
 
-# ----------------------------------------
+def extract_inference_features():
+    INFERENCE_FOLDER = "data/inference/pseudo_corpus"
+    vocab_json = "top_features_vocabulary.json"
+    output_csv = "inference_features.csv"
 
-def extract_text(filepath):
-    with open(filepath, 'r', encoding='utf-8') as f:
-        raw_text = BeautifulSoup(f, 'lxml-xml').get_text(separator=' ') if filepath.endswith(".xml") else f.read()
+    print("--- Starte Feature-Extraktion (Inferenzkorpus/Rolling Window) ---")
 
-    clean_text = re.sub(r'[^\u0370-\u03FF\u1F00-\u1FFF\s\.,;··!\?]', ' ', raw_text)
-    clean_text = re.sub(r'\s+', ' ', clean_text)
-
-    return clean_text.strip()
-
-
-def normalize_greek_token(token):
-    lemma = token.lemma_.lower() if token.lemma_ else token.text.lower()
-    text_lower = token.text.lower()
-
-    if text_lower in ELISION_MAP:
-        return ELISION_MAP[text_lower]
-
-    return lemma
-
-
-def process_inference_corpus(input_dir, output_csv, vocab_json):
     if not os.path.exists(vocab_json):
-        raise FileNotFoundError(f"Vokabular-Datei '{vocab_json}' fehlt. Führe erst extract_train_features.py aus!")
+        raise FileNotFoundError(
+            f"[Kritischer Fehler] Vokabular '{vocab_json}' fehlt. Zuerst Trainingsskript ausführen.")
 
     with open(vocab_json, 'r', encoding='utf-8') as f:
         vocab = json.load(f)
+        top_words = vocab['words']
+        top_pos = vocab['pos']
+        top_morph = vocab['morph']
 
-    top_words = vocab['words']
-    top_pos = vocab['pos']
-    top_morph = vocab['morph']
+    vectorizer, bible_tfidf = build_bible_vectorizer()
 
-    bible_vectorizer, bible_matrix = load_bible_reference("greek_bible.txt")
+    def is_bible_quote(sentence_text, threshold=0.85):
+        if not vectorizer or len(sentence_text) < 15: return False
+        s_vec = vectorizer.transform([sentence_text])
+        return cosine_similarity(s_vec, bible_tfidf).max() >= threshold
 
     sample_records = []
-    valid_files = [f for f in os.listdir(input_dir) if f.endswith((".xml", ".txt"))]
-    print(f"Starte Inferenz-Extraktion für {len(valid_files)} Dateien im Ordner {input_dir}...")
 
-    for filename in valid_files:
-        filepath = os.path.join(input_dir, filename)
-        text = extract_text(filepath)
+    for filename in os.listdir(INFERENCE_FOLDER):
+        file_path = os.path.join(INFERENCE_FOLDER, filename)
+        if not os.path.isfile(file_path): continue
 
-        if not text:
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                raw_text = clean_text(f.read())
+        except Exception as e:
+            print(f"Fehler bei {filename}: {e}")
             continue
 
-        doc = nlp(text)
+        doc = nlp(raw_text)
 
-        current_w = Counter()
-        current_p_tags = []
-        current_m = Counter()
+        current_w = {}
+        current_m = {}
+        current_syntactic_trigrams = []
+
         current_length = 0
         chunk_index = 0
 
         for sent in doc.sents:
+            if not is_bible_quote(sent.text):
+                current_length += len(sent)
+                for token in sent:
+                    if token.lemma_ in GREEK_FUNCTION_WORDS_LEMMATA:
+                        current_w[token.lemma_] = current_w.get(token.lemma_, 0) + 1
 
-            if is_bible_quote(sent.text, bible_vectorizer, bible_matrix, threshold=0.45):
-                continue
+                    if token.morph:
+                        morph_str = str(token.morph)
+                        current_m[morph_str] = current_m.get(morph_str, 0) + 1
 
-            valid_tokens = [t for t in sent if not t.is_punct and not t.is_space]
-            if not valid_tokens:
-                continue
+                    # Syntaktische POS-Trigramme extrahieren
+                    children = sorted(list(token.children), key=lambda c: c.i)
+                    if len(children) >= 2:
+                        for i in range(len(children) - 1):
+                            trigram = (children[i].pos_, token.pos_, children[i + 1].pos_)
+                            current_syntactic_trigrams.append(trigram)
 
-            for t in valid_tokens:
-                lemma = normalize_greek_token(t)
-                if lemma in GREEK_FUNCTION_WORDS_LEMMATA:
-                    current_w[lemma] += 1
-
-                if t.morph:
-                    current_m[str(t.morph)] += 1
-
-                current_p_tags.append(t.pos_)
-
-            current_length += len(valid_tokens)
-
-            if current_length >= 1000:
-                p_c = Counter(list(ngrams(current_p_tags, 3)))
+            # Rolling Window abspeichern bei >= 500 Tokens
+            if current_length >= 500:
+                p_c = Counter(current_syntactic_trigrams)
 
                 row = {"Auteur": "Pseudo", "Titre": f"{filename}_{chunk_index}"}
-
-                for w in top_words:
-                    row[f"LEMMA_{w}"] = current_w.get(w, 0)
+                for w in top_words: row[f"LEMMA_{w}"] = current_w.get(w, 0)
 
                 pos_dict = {f"{k[0]}_{k[1]}_{k[2]}": v for k, v in p_c.items()}
-                for p in top_pos:
-                    row[f"POS_{p}"] = pos_dict.get(p, 0)
-
-                for m in top_morph:
-                    row[f"MORPH_{m}"] = current_m.get(m, 0)
+                for p in top_pos: row[f"POS_{p}"] = pos_dict.get(p, 0)
+                for m in top_morph: row[f"MORPH_{m}"] = current_m.get(m, 0)
 
                 sample_records.append(row)
 
-                current_w = Counter()
-                current_p_tags = []
-                current_m = Counter()
+                # Reset für den nächsten Chunk
+                current_w = {}
+                current_m = {}
+                current_syntactic_trigrams = []
                 current_length = 0
                 chunk_index += 1
 
-        # Letzten Rest-Chunk oder kurzes Gesamtdokument verarbeiten
+        # Reste verarbeiten
         if current_length >= 500 or (chunk_index == 0 and current_length >= 100):
             if chunk_index == 0 and current_length < 500:
                 print(
                     f"[Methodische Warnung] Text '{filename}' (Inferenz) ist mit {current_length} Tokens extrem kurz. Stilometrische Resultate sind hier statistisch instabil!")
 
-            p_c = Counter(list(ngrams(current_p_tags, 3)))
+            p_c = Counter(current_syntactic_trigrams)
 
             row = {"Auteur": "Pseudo", "Titre": f"{filename}_{chunk_index}"}
-            for w in top_words:
-                row[f"LEMMA_{w}"] = current_w.get(w, 0)
+            for w in top_words: row[f"LEMMA_{w}"] = current_w.get(w, 0)
+
             pos_dict = {f"{k[0]}_{k[1]}_{k[2]}": v for k, v in p_c.items()}
-            for p in top_pos:
-                row[f"POS_{p}"] = pos_dict.get(p, 0)
-            for m in top_morph:
-                row[f"MORPH_{m}"] = current_m.get(m, 0)
+            for p in top_pos: row[f"POS_{p}"] = pos_dict.get(p, 0)
+            for m in top_morph: row[f"MORPH_{m}"] = current_m.get(m, 0)
 
             sample_records.append(row)
 
@@ -193,12 +171,4 @@ def process_inference_corpus(input_dir, output_csv, vocab_json):
 
 
 if __name__ == "__main__":
-    INFERENCE_FOLDER = "data/inference/pseudo_corpus"
-    OUTPUT_FILE = "inference_features.csv"
-    VOCAB_FILE = "top_features_vocabulary.json"
-
-    if not os.path.exists(INFERENCE_FOLDER):
-        os.makedirs(INFERENCE_FOLDER)
-        print(f"Ordner '{INFERENCE_FOLDER}' existierte nicht und wurde angelegt. Bitte Texte dort ablegen.")
-    else:
-        process_inference_corpus(INFERENCE_FOLDER, OUTPUT_FILE, VOCAB_FILE)
+    extract_inference_features()
