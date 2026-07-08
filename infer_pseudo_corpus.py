@@ -48,7 +48,7 @@ def compute_asterius_profile(model, scaler, pca, train_csv_path):
     distances_to_centroid = [dist.euclidean(emb, asterius_centroid) for emb in ast_embeddings]
 
     # Dynamic Threshold: Mean distance + 0.5 * Standard Deviation
-    dynamic_threshold = np.mean(distances_to_centroid) + 0.5 * np.std(distances_to_centroid)
+    dynamic_threshold = np.mean(distances_to_centroid) + 2 * np.std(distances_to_centroid)
 
     return asterius_centroid, dynamic_threshold, X_ast_pca, feature_cols
 
@@ -100,7 +100,7 @@ def run_inference():
     tensor_ast_pca = torch.FloatTensor(X_ast_pca).to(device)
     explainer = shap.DeepExplainer(model, tensor_ast_pca)
 
-    pca_feature_names = [f"PC_{i + 1}" for i in range(pca.n_components_)]
+    pca_feature_names = np.array([f"PC_{i + 1}" for i in range(pca.n_components_)])
     results = []
 
     for i, emb in enumerate(pseudo_embeddings):
@@ -114,15 +114,16 @@ def run_inference():
             'Classification': attribution
         })
 
-        # Generate SHAP explainability plot ONLY for highly likely Asterius matches
-        # Allows for a 25% tolerance margin around the threshold to catch edge cases
         if distance <= (threshold * 1.25):
             current_instance_tensor = torch.FloatTensor(X_pseudo_pca[i:i + 1]).to(device)
             shap_values = explainer.shap_values(current_instance_tensor)
 
+            # PyTorch DeepExplainer gibt oft eine Liste zurück. Wir benötigen das Array.
+            plot_shap_values = shap_values[0] if isinstance(shap_values, list) else shap_values
+
             plt.figure(figsize=(10, 6))
             shap.summary_plot(
-                shap_values,
+                plot_shap_values,
                 X_pseudo_pca[i:i + 1],
                 feature_names=pca_feature_names,
                 plot_type="bar",
