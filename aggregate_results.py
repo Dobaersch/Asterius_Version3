@@ -111,8 +111,8 @@ def aggregate_and_evaluate(input_csv, output_csv):
     # 2. Check: Ist das Cluster isoliert? (Cohen's d > 0.8 gilt als starker Effekt)
     print(f"Distanz-Effektstärke (Cohen's d):   {cohens_d:.4f}")
     if cohens_d > 0.8:
-        print("[✓] Isolation valide: Das Ignotus-Cluster grenzt sich signifikant und")
-        print("    strikt vom restlichen pseudo-chrysostomischen Material ab.")
+        print("[✓] Isolation valide: Das Ignotus-Cluster grenzt sich deutlich und")
+        print("    vom restlichen pseudo-chrysostomischen Material ab.")
     else:
         print("[✗] Isolation schwach: Das Ignotus-Cluster überschneidet sich stark mit")
         print("    dem Restkorpus. Keine klare philologische Demarkation möglich.")
