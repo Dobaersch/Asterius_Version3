@@ -61,8 +61,7 @@ class PatristicTripletDataset(Dataset):
             negative = self.easy_negatives_df[neg_idx]
 
         # Gaussian Noise injection is strictly removed to preserve discrete stylistic features
-        return torch.FloatTensor(anchor), torch.FloatTensor(positive), torch.FloatTensor(negative)
-
+        return torch.FloatTensor(anchor.copy()), torch.FloatTensor(positive.copy()), torch.FloatTensor(negative.copy())
 
 class SiameseTabularNet(nn.Module):
     """
