@@ -5,8 +5,11 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 from sklearn.preprocessing import StandardScaler
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import StratifiedKFold
 from sklearn.decomposition import PCA
+from sklearn.pipeline import Pipeline
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.metrics import accuracy_score, f1_score
 import joblib
 import warnings
 
@@ -31,16 +34,15 @@ class PatristicTripletDataset(Dataset):
     def __init__(self, df, feature_cols):
         self.feature_cols = feature_cols
 
-        # Separate Asterius from the rest
-        self.asterius_df = df[df['Auteur'].str.contains('Asterius', case=False, na=False)][self.feature_cols].values
-        other_df = df[~df['Auteur'].str.contains('Asterius', case=False, na=False)]
+        asterius_mask = df['Auteur'].str.contains('Asterius', case=False, na=False)
+        self.asterius_df = df[asterius_mask][self.feature_cols].values
+        other_df = df[~asterius_mask]
 
-        # Split negative samples for Triplet Loss
-        # Hard Negatives: Authors structurally close to Asterius (e.g., Basilius, Severian)
-        self.hard_negatives_df = other_df[other_df['Auteur'].str.contains('Basilius|Severian', case=False, na=False)][
-            self.feature_cols].values
-        self.easy_negatives_df = other_df[~other_df['Auteur'].str.contains('Basilius|Severian', case=False, na=False)][
-            self.feature_cols].values
+        hard_neg_pattern = 'Basilius|Severian|Chrysostomos|Gregor_nazianz|Gregor_nyssa'
+        hard_mask = other_df['Auteur'].str.contains(hard_neg_pattern, case=False, na=False)
+
+        self.hard_negatives_df = other_df[hard_mask][self.feature_cols].values
+        self.easy_negatives_df = other_df[~hard_mask][self.feature_cols].values
 
     def __len__(self):
         return len(self.asterius_df)
@@ -48,11 +50,9 @@ class PatristicTripletDataset(Dataset):
     def __getitem__(self, idx):
         anchor = self.asterius_df[idx]
 
-        # Select a random OTHER Asterius sample (Positive)
         positive_idx = np.random.choice([i for i in range(len(self.asterius_df)) if i != idx])
         positive = self.asterius_df[positive_idx]
 
-        # Select a negative sample (Hard or Easy Negative)
         if len(self.hard_negatives_df) > 0 and (np.random.rand() < 0.5 or len(self.easy_negatives_df) == 0):
             neg_idx = np.random.randint(0, len(self.hard_negatives_df))
             negative = self.hard_negatives_df[neg_idx]
@@ -60,8 +60,8 @@ class PatristicTripletDataset(Dataset):
             neg_idx = np.random.randint(0, len(self.easy_negatives_df))
             negative = self.easy_negatives_df[neg_idx]
 
-        # Gaussian Noise injection is strictly removed to preserve discrete stylistic features
         return torch.FloatTensor(anchor.copy()), torch.FloatTensor(positive.copy()), torch.FloatTensor(negative.copy())
+
 
 class SiameseTabularNet(nn.Module):
     """
@@ -84,60 +84,13 @@ class SiameseTabularNet(nn.Module):
         return self.fc(x)
 
 
-def train_siamese_network(csv_path, epochs=100, batch_size=16, learning_rate=0.001):
+def train_model_instance(train_dataloader, model, epochs, learning_rate, verbose=False):
     """
-    Loads data, applies dynamic PCA, and trains the Siamese Network with Triplet Loss.
+    Core training loop for Siamese Network using Triplet Margin Loss.
     """
-    df = pd.read_csv(csv_path)
-
-    # Identify feature columns dynamically (excluding metadata columns)
-    exclude_cols = ['Auteur', 'Titre', 'Text']
-    feature_cols = [col for col in df.columns if col not in exclude_cols]
-
-    # Train/Validation split
-    train_df, val_df = train_test_split(df, test_size=0.2, stratify=df['Auteur'], random_state=RANDOM_SEED)
-
-    # 1. Feature Scaling (Z-Standardization is mandatory before PCA)
-    scaler = StandardScaler()
-    X_train_scaled = scaler.fit_transform(train_df[feature_cols])
-    X_val_scaled = scaler.transform(val_df[feature_cols])
-
-    # 2. Dynamic PCA: Dimensionality Reduction based on Variance
-    # Retaining 95% of the stylistic variance instead of an arbitrary fixed number
-    pca = PCA(n_components=0.95, random_state=RANDOM_SEED)
-    X_train_pca = pca.fit_transform(X_train_scaled)
-    X_val_pca = pca.transform(X_val_scaled)
-
-    n_components_retained = pca.n_components_
-    print(f"[Info] PCA dynamically reduced features to {n_components_retained} components (95% variance retained).")
-
-    # Override dataframes with PCA components
-    train_pca_df = train_df[['Auteur', 'Titre']].copy()
-    val_pca_df = val_df[['Auteur', 'Titre']].copy()
-
-    pca_cols = [f'PC_{i}' for i in range(n_components_retained)]
-
-    train_pca_features = pd.DataFrame(X_train_pca, columns=pca_cols, index=train_df.index)
-    val_pca_features = pd.DataFrame(X_val_pca, columns=pca_cols, index=val_df.index)
-
-    train_pca_df = pd.concat([train_pca_df, train_pca_features], axis=1)
-    val_pca_df = pd.concat([val_pca_df, val_pca_features], axis=1)
-
-    # 3. Initialize Datasets using the dynamically generated PCA columns
-    train_dataset = PatristicTripletDataset(train_pca_df, feature_cols=pca_cols)
-    val_dataset = PatristicTripletDataset(val_pca_df, feature_cols=pca_cols)
-
-    train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
-
-    # 4. Initialize the model dynamically based on PCA dimension output
-    model = SiameseTabularNet(input_size=n_components_retained).to(device)
     criterion = nn.TripletMarginLoss(margin=1.0, p=2)
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 
-    print("[Info] Starting Training Process...")
-
-    # 5. Training Loop
     for epoch in range(epochs):
         model.train()
         total_train_loss = 0.0
@@ -154,44 +107,135 @@ def train_siamese_network(csv_path, epochs=100, batch_size=16, learning_rate=0.0
 
             total_train_loss += loss.item()
 
-        # Validation
-        model.eval()
-        total_val_loss = 0.0
-        with torch.no_grad():
-            for anchor_v, positive_v, negative_v in val_dataloader:
-                anchor_v, positive_v, negative_v = anchor_v.to(device), positive_v.to(device), negative_v.to(device)
-                out_a_v, out_p_v, out_n_v = model(anchor_v), model(positive_v), model(negative_v)
-
-                val_loss = criterion(out_a_v, out_p_v, out_n_v)
-                total_val_loss += val_loss.item()
-
-        if (epoch + 1) % 10 == 0:
+        if verbose and (epoch + 1) % 20 == 0:
             avg_train_loss = total_train_loss / len(train_dataloader)
-            avg_val_loss = total_val_loss / len(val_dataloader) if len(val_dataloader) > 0 else 0
-            print(f"Epoch {epoch + 1:03d}/{epochs} | Train Loss: {avg_train_loss:.4f} | Val Loss: {avg_val_loss:.4f}")
+            print(f"    Epoch {epoch + 1:03d}/{epochs} | Train Triplet Loss: {avg_train_loss:.4f}")
 
-    # Return model to CPU to ensure safe persistence
-    return model.cpu(), scaler, pca
+
+def evaluate_pca_variance(df, feature_cols, variance_thresholds=[0.90, 0.95, 0.99], k_folds=5, epochs=100,
+                          batch_size=16, learning_rate=0.001):
+    """
+    Acts as a manual GridSearch for PCA variance threshold utilizing a scikit-learn Pipeline.
+    """
+    print(f"\n[Info] Starting Dimensionality Reduction Evaluation...")
+    best_variance = None
+    best_f1 = -1.0
+
+    for variance in variance_thresholds:
+        print(f"\n==================================================")
+        print(f"Evaluating PCA Variance Threshold: {variance * 100:.0f}%")
+        print(f"==================================================")
+
+        skf = StratifiedKFold(n_splits=k_folds, shuffle=True, random_state=RANDOM_SEED)
+        fold_f1_scores = []
+
+        for fold, (train_idx, val_idx) in enumerate(skf.split(df, df['Auteur'])):
+            train_df = df.iloc[train_idx].copy()
+            val_df = df.iloc[val_idx].copy()
+
+            # Implementation of scikit-learn Pipeline
+            preprocessor = Pipeline([
+                ('scaler', StandardScaler()),
+                ('pca', PCA(n_components=variance, random_state=RANDOM_SEED))
+            ])
+
+            X_train_pca = preprocessor.fit_transform(train_df[feature_cols])
+            X_val_pca = preprocessor.transform(val_df[feature_cols])
+
+            pca_dim = preprocessor.named_steps['pca'].n_components_
+            pca_cols = [f'PC_{i}' for i in range(pca_dim)]
+
+            train_pca_df = pd.concat([train_df[['Auteur']].reset_index(drop=True),
+                                      pd.DataFrame(X_train_pca, columns=pca_cols)], axis=1)
+            val_pca_df = pd.concat([val_df[['Auteur']].reset_index(drop=True),
+                                    pd.DataFrame(X_val_pca, columns=pca_cols)], axis=1)
+
+            train_dataset = PatristicTripletDataset(train_pca_df, feature_cols=pca_cols)
+            train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+
+            model = SiameseTabularNet(input_size=pca_dim).to(device)
+            train_model_instance(train_dataloader, model, epochs, learning_rate, verbose=False)
+
+            # k-NN Evaluation on Embeddings
+            model.eval()
+            with torch.no_grad():
+                train_embeddings = model(torch.FloatTensor(X_train_pca).to(device)).cpu().numpy()
+                val_embeddings = model(torch.FloatTensor(X_val_pca).to(device)).cpu().numpy()
+
+            y_train_bin = train_df['Auteur'].str.contains('Asterius', case=False, na=False).astype(int).values
+            y_val_bin = val_df['Auteur'].str.contains('Asterius', case=False, na=False).astype(int).values
+
+            knn = KNeighborsClassifier(n_neighbors=5, metric='cosine')
+            knn.fit(train_embeddings, y_train_bin)
+            y_pred = knn.predict(val_embeddings)
+
+            fold_f1 = f1_score(y_val_bin, y_pred, zero_division=0)
+            fold_f1_scores.append(fold_f1)
+
+        mean_f1 = np.mean(fold_f1_scores)
+        print(f"[Result] {variance * 100}% Variance -> Mean F1-Score: {mean_f1:.4f} (Avg. {pca_dim} Dimensions)")
+
+        if mean_f1 > best_f1:
+            best_f1 = mean_f1
+            best_variance = variance
+
+    print(f"\n[Decision] Optimal PCA Variance Threshold determined as: {best_variance * 100:.0f}%")
+    return best_variance
+
+
+def train_final_model(df, feature_cols, optimal_variance, epochs=100, batch_size=16, learning_rate=0.001):
+    """
+    Trains final production model using the selected optimal variance and Pipeline.
+    """
+    print(f"\n[Info] Training Final Model on 100% of data (Variance: {optimal_variance * 100:.0f}%)...")
+
+    preprocessor = Pipeline([
+        ('scaler', StandardScaler()),
+        ('pca', PCA(n_components=optimal_variance, random_state=RANDOM_SEED))
+    ])
+
+    X_pca = preprocessor.fit_transform(df[feature_cols])
+    pca_dim = preprocessor.named_steps['pca'].n_components_
+
+    pca_cols = [f'PC_{i}' for i in range(pca_dim)]
+    pca_df = pd.concat([df[['Auteur']].reset_index(drop=True),
+                        pd.DataFrame(X_pca, columns=pca_cols)], axis=1)
+
+    full_dataset = PatristicTripletDataset(pca_df, feature_cols=pca_cols)
+    full_dataloader = DataLoader(full_dataset, batch_size=batch_size, shuffle=True)
+
+    model = SiameseTabularNet(input_size=pca_dim).to(device)
+    train_model_instance(full_dataloader, model, epochs, learning_rate, verbose=True)
+
+    return model.cpu(), preprocessor
 
 
 if __name__ == "__main__":
-    # Standardized English variables
     csv_path = "train_features.csv"
     model_export_path = "siamese_asterius.pth"
-    scaler_export_path = "asterius_scaler.pkl"
-    pca_export_path = "asterius_pca.pkl"
+    preprocessor_export_path = "asterius_preprocessor.pkl"
 
     print("--- Starting Siamese Network Pipeline ---")
-    print(f"[Info] Loading training features from '{csv_path}'")
 
-    trained_model, fitted_scaler, fitted_pca = train_siamese_network(csv_path, epochs=100)
+    try:
+        df = pd.read_csv(csv_path)
+    except FileNotFoundError:
+        print(f"[Error] Dataset '{csv_path}' not found. Please ensure the file exists.")
+        exit(1)
 
-    # Safe and complete artifact persistence using joblib and torch
+    exclude_cols = ['Auteur', 'Titre', 'Text']
+    feature_cols = [col for col in df.columns if col not in exclude_cols]
+
+    # Step 1: Parameter Study / Grid Search equivalent for PCA Variance
+    optimal_variance = evaluate_pca_variance(df, feature_cols, variance_thresholds=[0.90, 0.95, 0.98])
+
+    # Step 2: Final Model Training using Pipeline
+    trained_model, fitted_preprocessor = train_final_model(df, feature_cols, optimal_variance)
+
+    # Export Artifacts (Pipeline consolidates Scaler & PCA)
     torch.save(trained_model.state_dict(), model_export_path)
-    joblib.dump(fitted_scaler, scaler_export_path)
-    joblib.dump(fitted_pca, pca_export_path)
+    joblib.dump(fitted_preprocessor, preprocessor_export_path)
 
     print("\n--- Pipeline Execution Successful ---")
-    print(f"[Success] Model saved to '{model_export_path}'")
-    print(f"[Success] Scaler saved to '{scaler_export_path}'")
-    print(f"[Success] PCA mapping saved to '{pca_export_path}'")
+    print(f"[Success] Final Model saved to '{model_export_path}'")
+    print(f"[Success] Combined Preprocessor (Scaler + PCA) saved to '{preprocessor_export_path}'")
