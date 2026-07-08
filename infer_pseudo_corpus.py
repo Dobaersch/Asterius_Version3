@@ -1,133 +1,147 @@
+import os
+import warnings
 import pandas as pd
 import numpy as np
 import torch
-import pickle
+import joblib
 import scipy.spatial.distance as dist
 import shap
 import matplotlib.pyplot as plt
-import os
-import warnings
+
+# Import the architecture dynamically from your training script
 from run_verification import SiameseTabularNet
 
+# Suppress visual clutter in the terminal
 warnings.simplefilter(action='ignore', category=FutureWarning)
 warnings.filterwarnings("ignore", category=UserWarning)
 
-def compute_asterius_profile(model, scaler, pca, train_csv_path):
-    df_train = pd.read_csv(train_csv_path)
-    feature_cols = df_train.columns.drop(['Auteur', 'Titre'])
-    df_asterius = df_train[df_train['Auteur'].str.lower() == 'asterius'].copy()
+# --- Device Configuration ---
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
+
+def compute_asterius_profile(model, scaler, pca, train_csv_path):
+    """
+    Reconstructs the stylistic centroid (average vector) of Asterius
+    and calculates the dynamic inclusion threshold based on standard deviation.
+    """
+    df_train = pd.read_csv(train_csv_path)
+
+    # Isolate feature columns dynamically
+    exclude_cols = ['Auteur', 'Titre', 'Text']
+    feature_cols = [col for col in df_train.columns if col not in exclude_cols]
+
+    # Filter for known Asterius texts
+    df_asterius = df_train[df_train['Auteur'].str.contains('Asterius', case=False, na=False)].copy()
+
+    # Apply identical transformations: Scale -> PCA -> Network
     X_ast_raw = df_asterius[feature_cols].astype(float)
     X_ast_scaled = scaler.transform(X_ast_raw)
     X_ast_pca = pca.transform(X_ast_scaled)
 
     with torch.no_grad():
-        ast_embeddings = model(torch.FloatTensor(X_ast_pca)).numpy()
+        ast_embeddings = model(torch.FloatTensor(X_ast_pca).to(device)).cpu().numpy()
 
+    # Calculate the centroid (geometric center) of Asterius's style
     asterius_centroid = np.mean(ast_embeddings, axis=0)
+
+    # Calculate distances of all known Asterius chunks to their own centroid
     distances_to_centroid = [dist.euclidean(emb, asterius_centroid) for emb in ast_embeddings]
+
+    # Dynamic Threshold: Mean distance + 0.5 * Standard Deviation
     dynamic_threshold = np.mean(distances_to_centroid) + 0.5 * np.std(distances_to_centroid)
 
-    return asterius_centroid, dynamic_threshold, X_ast_raw.values, feature_cols
+    return asterius_centroid, dynamic_threshold, X_ast_pca, feature_cols
 
 
-def run_inference(train_csv, pseudo_csv, model_path, scaler_path, pca_path, output_csv):
-    print("--- Schritt 1: Lade Modelle, Scaler und PCA ---")
-    with open(scaler_path, 'rb') as f:
-        scaler = pickle.load(f)
-    with open(pca_path, 'rb') as f:
-        pca = pickle.load(f)
+def run_inference():
+    # --- File Paths ---
+    TRAIN_CSV = "train_features.csv"
+    INFERENCE_CSV = "inference_features.csv"
+    MODEL_PATH = "siamese_asterius.pth"
+    SCALER_PATH = "asterius_scaler.pkl"
+    PCA_PATH = "asterius_pca.pkl"
+    OUTPUT_CSV = "asterius_inference_results.csv"
+    SHAP_DIR = "shap_plots"
 
-    pseudo_features_df = pd.read_csv(pseudo_csv)
-    df_train_reference = pd.read_csv(train_csv)
-    feature_cols = df_train_reference.columns.drop(['Auteur', 'Titre'])
+    os.makedirs(SHAP_DIR, exist_ok=True)
 
-    # Das Modell erwartet nur noch die komprimierte Dimension (z.B. 15 oder weniger)
-    input_dim = pca.n_components_
-    model = SiameseTabularNet(input_dim)
-    model.load_state_dict(torch.load(model_path, weights_only=True))
+    print("--- Step 1: Loading Trained Artifacts ---")
+    try:
+        scaler = joblib.load(SCALER_PATH)
+        pca = joblib.load(PCA_PATH)
+        print(f"[Success] Loaded Scaler and PCA (Dynamic Components: {pca.n_components_})")
+    except FileNotFoundError as e:
+        raise FileNotFoundError(f"[Error] Artifact missing: {e}. Please run run_verification.py first.")
+
+    # Dynamically set model input size based on PCA output
+    model = SiameseTabularNet(input_size=pca.n_components_).to(device)
+    model.load_state_dict(torch.load(MODEL_PATH, map_location=device))
     model.eval()
+    print("[Success] Siamese Network weights loaded.")
 
-    print("\n--- Schritt 2: Berechne Asterius-Referenzprofil (Centroid) ---")
-    asterius_centroid, dynamic_threshold, X_ast_raw, feature_names = compute_asterius_profile(model, scaler, pca,
-                                                                                              train_csv)
-    print(f"[Info] Dynamischer Schwellenwert berechnet: {dynamic_threshold:.4f}")
+    print("\n--- Step 2: Calculating Asterius Reference Profile ---")
+    centroid, threshold, X_ast_pca, feature_cols = compute_asterius_profile(model, scaler, pca, TRAIN_CSV)
+    print(f"Asterius Threshold set at Euclidean Distance: {threshold:.4f}")
 
-    print("\n--- Schritt 3: Evaluiere anonymes Pseudo-Chrysostomos-Korpus ---")
-    titles = pseudo_features_df['Titre']
-    pseudo_labels = pseudo_features_df['Auteur']
+    print("\n--- Step 3: Evaluating Anonymous Pseudo-Chrysostom Corpus ---")
+    df_infer = pd.read_csv(INFERENCE_CSV)
+    titles = df_infer['Titre']
 
-    X_pseudo_raw = pseudo_features_df[feature_cols].astype(float).values
+    # Extract matching columns
+    X_pseudo_raw = df_infer[feature_cols].astype(float)
     X_pseudo_scaled = scaler.transform(X_pseudo_raw)
     X_pseudo_pca = pca.transform(X_pseudo_scaled)
 
     with torch.no_grad():
-        pseudo_embeddings = model(torch.FloatTensor(X_pseudo_pca)).numpy()
+        pseudo_embeddings = model(torch.FloatTensor(X_pseudo_pca).to(device)).cpu().numpy()
 
-    # Wrapper für SHAP: Akzeptiert Original-Features, wendet Transformationen an und berechnet Distanz
-    def model_distance_wrapper(X_orig):
-        X_s = scaler.transform(X_orig)
-        X_p = pca.transform(X_s)
-        tensor_X = torch.FloatTensor(X_p)
-        with torch.no_grad():
-            embs = model(tensor_X).numpy()
-        return np.array([dist.euclidean(emb, asterius_centroid) for emb in embs])
+    # Initialize SHAP DeepExplainer using the PCA feature space
+    # (Since the model input is strictly PCA components)
+    tensor_ast_pca = torch.FloatTensor(X_ast_pca).to(device)
+    explainer = shap.DeepExplainer(model, tensor_ast_pca)
 
-    print("[Info] Initialisiere SHAP KernelExplainer (auf Original-Features)...")
-    background_summary = shap.kmeans(X_ast_raw, 10)
-    explainer = shap.KernelExplainer(model_distance_wrapper, background_summary)
-
-    shap_dir = "shap_explanations"
-    os.makedirs(shap_dir, exist_ok=True)
-
+    pca_feature_names = [f"PC_{i + 1}" for i in range(pca.n_components_)]
     results = []
 
     for i, emb in enumerate(pseudo_embeddings):
-        distance = dist.euclidean(emb, asterius_centroid)
-
-        if distance <= dynamic_threshold:
-            attribution = "Core-Asterius (Sichere Zuweisung)"
-        elif distance <= (dynamic_threshold * 1.25):
-            attribution = "Grauzone (Theologisch verwandt / Kompilation)"
-        else:
-            attribution = "Abgewiesen (Fremdautor)"
+        distance = dist.euclidean(emb, centroid)
+        attribution = "Asterius" if distance <= threshold else "Pseudo/Other"
 
         results.append({
-            'ComparatorClass': 'Asterius',
             'Pseudo_Text_Titre': titles.iloc[i],
             'Distance_to_Centroid': distance,
-            'Original_Klasse': pseudo_labels.iloc[i],
-            'Dynamic_Threshold': dynamic_threshold,
+            'Threshold': threshold,
             'Classification': attribution
         })
 
-        if distance <= (dynamic_threshold * 1.25):
-            current_instance_raw = X_pseudo_raw[i:i + 1]
-            shap_values = explainer.shap_values(current_instance_raw, silent=True)
+        # Generate SHAP explainability plot ONLY for highly likely Asterius matches
+        # Allows for a 25% tolerance margin around the threshold to catch edge cases
+        if distance <= (threshold * 1.25):
+            current_instance_tensor = torch.FloatTensor(X_pseudo_pca[i:i + 1]).to(device)
+            shap_values = explainer.shap_values(current_instance_tensor)
 
             plt.figure(figsize=(10, 6))
-            shap.summary_plot(shap_values, current_instance_raw, feature_names=feature_names, plot_type="bar",
-                              show=False)
-            plt.title(
-                f"Stilometrische Metadaten: {titles.iloc[i]}\n(Positive Balken = vergrößern Distanz | Negative = verkleinern Distanz)")
+            shap.summary_plot(
+                shap_values,
+                X_pseudo_pca[i:i + 1],
+                feature_names=pca_feature_names,
+                plot_type="bar",
+                show=False
+            )
+            plt.title(f"Stylometric PCA Metasynthesis: {titles.iloc[i]}\n"
+                      f"(Positive Bars = Increase Distance | Negative = Decrease Distance)")
 
-            safe_title = "".join(x for x in titles.iloc[i] if x.isalnum() or x in "._- ")
-            plt.savefig(os.path.join(shap_dir, f"shap_{safe_title}.png"), bbox_inches='tight', dpi=300)
+            safe_title = "".join(x for x in str(titles.iloc[i]) if x.isalnum() or x in "._- ")
+            plt.savefig(os.path.join(SHAP_DIR, f"shap_{safe_title}.png"), bbox_inches='tight', dpi=300)
             plt.close()
 
+    # Export final results
     df_results = pd.DataFrame(results).sort_values(by='Distance_to_Centroid')
-    df_results.to_csv(output_csv, index=False)
+    df_results.to_csv(OUTPUT_CSV, index=False)
 
-    print(f"\n[OK] Inferenz abgeschlossen. Ergebnisse gespeichert unter: {output_csv}")
-    print(f"[OK] Explainable AI Plots abgelegt in '{shap_dir}/'")
+    print(f"\n[OK] Inference completed. Matrix saved as: '{OUTPUT_CSV}'")
+    print(f"[OK] Explainable AI (SHAP) plots generated in directory: '{SHAP_DIR}/'")
 
 
 if __name__ == "__main__":
-    TRAIN_CSV = "train_features.csv"
-    PSEUDO_CSV = "inference_features.csv"
-    MODEL_PATH = "siamese_asterius.pth"
-    SCALER_PATH = "scaler.pkl"
-    PCA_PATH = "pca_model.pkl"
-    OUTPUT_CSV = "asterius_inference_results.csv"
-
-    run_inference(TRAIN_CSV, PSEUDO_CSV, MODEL_PATH, SCALER_PATH, PCA_PATH, OUTPUT_CSV)
+    run_inference()

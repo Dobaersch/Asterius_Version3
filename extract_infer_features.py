@@ -9,25 +9,14 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 import warnings
 
-# Unterdrücke Warnungen für eine saubere Konsole
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
-# NLP-Modell laden und Sentencizer sicherstellen
 spacy.prefer_gpu()
 nlp = spacy.load("grc_odycy_joint_trf")
 nlp.max_length = 3000000
 
 if "sentencizer" not in nlp.pipe_names:
     nlp.add_pipe("sentencizer")
-
-# Globale Konstanten
-GREEK_FUNCTION_WORDS_LEMMATA = {
-    "καί", "δέ", "τε", "ἀλλά", "ἤ", "γάρ", "οὖν", "ἄρα", "διό",
-    "ἵνα", "ὅπως", "ὡς", "ὥστε", "ὅτι", "εἰ", "ἐάν", "ἐπεί", "ἐπειδή",
-    "οὔτε", "μήτε", "οὐδέ", "μηδέ", "πλήν", "ἐν", "εἰς", "ἐκ", "ἐξ",
-    "πρός", "ἐπί", "διά", "κατά", "μετά", "παρά", "ἀπό", "ὑπέρ", "ὑπό",
-    "περί", "ἀντί", "πρό", "σύν", "ἄνευ", "ἕνεκα"
-}
 
 def read_file_safely(file_path):
     """Sicheres Einlesen mit Encoding-Fallback"""
@@ -46,7 +35,7 @@ def read_file_safely(file_path):
 def clean_text(text, filename):
     """
     Dynamisches Parsing für heterogene Korpora: Repariert XML-Fragmente
-    und entfernt englischsprachige Metadaten (teiHeader).
+    und entfernt Metadaten (teiHeader).
     """
     if filename.lower().endswith('.xml'):
         # 1. Entferne eventuelle XML-Deklarationen, die den Wrapper stören würden
@@ -59,7 +48,7 @@ def clean_text(text, filename):
         try:
             soup = BeautifulSoup(wrapped_text, "xml")
 
-            # 3. Projekt-Optimierung: TEI-Header (Metadaten) restlos löschen,
+            # TEI-Header (Metadaten) restlos löschen,
             # da diese sonst die syntaktische Trigramm-Statistik verfälschen!
             for header in soup.find_all('teiHeader'):
                 header.decompose()
@@ -69,30 +58,32 @@ def clean_text(text, filename):
             # Fallback
             text = re.sub(r'<[^>]+>', ' ', text)
     else:
-        # Bei .txt Dateien entfernen wir nur die eckigen Klammern (Konjekturen),
-        # damit rekonstruierte Wörter (z.B. <θεὸς>) philologisch erhalten bleiben.
+        # Entfernen von eckigen Klammern (Konjekturen),
+        # damit rekonstruierte Wörter (z.B. <θεὸς>) erhalten bleiben.
         text = text.replace('<', '').replace('>', '')
 
     # Bereinige doppelte Leerzeichen und Zeilenumbrüche
     text = re.sub(r'\s+', ' ', text)
     return text.strip()
 
+
 def build_bible_vectorizer(bible_path="greek_bible.txt"):
     if not os.path.exists(bible_path):
         return None, None
     with open(bible_path, 'r', encoding='utf-8', errors='ignore') as f:
         bible_text = f.read()
-        
+
     bible_text = re.sub(r'\s+', ' ', bible_text).strip()
     bible_sentences = re.split(r'[.·;]+', bible_text)
     bible_sentences = [s.strip() for s in bible_sentences if len(s.strip()) > 10]
-    
+
     if not bible_sentences:
         return None, None
-        
+
     vectorizer = TfidfVectorizer(analyzer='char', ngram_range=(3, 5))
     bible_tfidf = vectorizer.fit_transform(bible_sentences)
     return vectorizer, bible_tfidf
+
 
 def extract_inference_features():
     INFERENCE_FOLDER = "data/inference/pseudo_corpus"
@@ -102,8 +93,10 @@ def extract_inference_features():
     print("--- Starte Feature-Extraktion (Inferenzkorpus/Rolling Window) ---")
 
     if not os.path.exists(vocab_json):
-        raise FileNotFoundError(f"[Kritischer Fehler] Vokabular '{vocab_json}' fehlt. Zuerst Trainingsskript ausführen.")
+        raise FileNotFoundError(
+            f"[Kritischer Fehler] Vokabular '{vocab_json}' fehlt. Zuerst Trainingsskript ausführen.")
 
+    # Vokabular aus der Trainingsphase laden
     with open(vocab_json, 'r', encoding='utf-8') as f:
         vocab = json.load(f)
         top_words = vocab['words']
@@ -121,19 +114,19 @@ def extract_inference_features():
 
     for filename in os.listdir(INFERENCE_FOLDER):
         file_path = os.path.join(INFERENCE_FOLDER, filename)
-        
+
         # Ignoriere Unterordner oder Systemdateien
-        if not os.path.isfile(file_path) or filename.startswith('.'): 
+        if not os.path.isfile(file_path) or filename.startswith('.'):
             continue
 
         try:
             raw_text = read_file_safely(file_path)
             raw_text = clean_text(raw_text, filename)
-            
+
             if len(raw_text) < 50:
                 print(f"[Übersprungen] '{filename}' enthält zu wenig verwertbaren Text.")
                 continue
-                
+
             doc = nlp(raw_text)
         except Exception as e:
             print(f"[Kritischer Fehler] Datei '{filename}' übersprungen: {e}")
@@ -142,16 +135,19 @@ def extract_inference_features():
         current_w = {}
         current_m = {}
         current_syntactic_trigrams = []
-        
+
         current_length = 0
         chunk_index = 0
 
         for sent in doc.sents:
             if not is_bible_quote(sent.text):
                 current_length += len(sent)
+
                 for token in sent:
-                    if token.lemma_ in GREEK_FUNCTION_WORDS_LEMMATA:
-                        current_w[token.lemma_] = current_w.get(token.lemma_, 0) + 1
+                    # Dynamische Erfassung aller alphabetischen Tokens
+                    if token.is_alpha:
+                        lemma = token.lemma_.lower()
+                        current_w[lemma] = current_w.get(lemma, 0) + 1
 
                     if token.morph:
                         morph_str = str(token.morph)
@@ -161,16 +157,18 @@ def extract_inference_features():
                     children = sorted(list(token.children), key=lambda c: c.i)
                     if len(children) >= 2:
                         for i in range(len(children) - 1):
-                            trigram = (children[i].pos_, token.pos_, children[i+1].pos_)
+                            trigram = (children[i].pos_, token.pos_, children[i + 1].pos_)
                             current_syntactic_trigrams.append(trigram)
 
-            # Rolling Window abspeichern bei >= 500 Tokens
-            if current_length >= 500:
+            # Rolling Window: Angehoben auf >= 1000 Tokens
+            if current_length >= 1000:
                 p_c = Counter(current_syntactic_trigrams)
 
                 row = {"Auteur": "Pseudo", "Titre": f"{filename}_{chunk_index}"}
+
+                # Zuweisung basierend auf dem geladenen JSON-Vokabular
                 for w in top_words: row[f"LEMMA_{w}"] = current_w.get(w, 0)
-                
+
                 pos_dict = {f"{k[0]}_{k[1]}_{k[2]}": v for k, v in p_c.items()}
                 for p in top_pos: row[f"POS_{p}"] = pos_dict.get(p, 0)
                 for m in top_morph: row[f"MORPH_{m}"] = current_m.get(m, 0)
@@ -185,15 +183,16 @@ def extract_inference_features():
                 chunk_index += 1
 
         # Restlichen Text verarbeiten (letzter Chunk)
-        if current_length >= 500 or (chunk_index == 0 and current_length >= 100):
-            if chunk_index == 0 and current_length < 500:
-                print(f"[Methodische Warnung] Text '{filename}' ist mit {current_length} Tokens sehr kurz (Resultate statistisch instabil).")
+        if current_length >= 1000 or (chunk_index == 0 and current_length >= 250):
+            if chunk_index == 0 and current_length < 1000:
+                print(
+                    f"[Methodische Warnung] Text '{filename}' ist mit {current_length} Tokens sehr kurz (Resultate statistisch instabil).")
 
             p_c = Counter(current_syntactic_trigrams)
 
             row = {"Auteur": "Pseudo", "Titre": f"{filename}_{chunk_index}"}
             for w in top_words: row[f"LEMMA_{w}"] = current_w.get(w, 0)
-            
+
             pos_dict = {f"{k[0]}_{k[1]}_{k[2]}": v for k, v in p_c.items()}
             for p in top_pos: row[f"POS_{p}"] = pos_dict.get(p, 0)
             for m in top_morph: row[f"MORPH_{m}"] = current_m.get(m, 0)

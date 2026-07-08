@@ -18,14 +18,6 @@ nlp.max_length = 3000000
 if "sentencizer" not in nlp.pipe_names:
     nlp.add_pipe("sentencizer")
 
-GREEK_FUNCTION_WORDS_LEMMATA = {
-    "καί", "δέ", "τε", "ἀλλά", "ἤ", "γάρ", "οὖν", "ἄρα", "διό",
-    "ἵνα", "ὅπως", "ὡς", "ὥστε", "ὅτι", "εἰ", "ἐάν", "ἐπεί", "ἐπειδή",
-    "οὔτε", "μήτε", "οὐδέ", "μηδέ", "πλήν", "ἐν", "εἰς", "ἐκ", "ἐξ",
-    "πρός", "ἐπί", "διά", "κατά", "μετά", "παρά", "ἀπό", "ὑπέρ", "ὑπό",
-    "περί", "ἀντί", "πρό", "σύν", "ἄνευ", "ἕνεκα"
-}
-
 
 def read_file_safely(file_path):
     encodings = ['utf-8-sig', 'utf-8', 'iso-8859-7', 'windows-1253', 'latin-1']
@@ -100,9 +92,11 @@ def extract_features():
                 if not is_bible_quote(sent.text):
                     current_length += len(sent)
                     for token in sent:
-                        if token.lemma_ in GREEK_FUNCTION_WORDS_LEMMATA:
-                            current_w[token.lemma_] += 1
-                            global_counts['words'][token.lemma_] += 1
+                        if token.is_alpha:
+                            lemma = token.lemma_.lower()
+                            current_w[lemma] += 1
+                            global_counts['words'][lemma] += 1
+
                         if token.morph:
                             morph_str = str(token.morph)
                             current_m[morph_str] += 1
@@ -116,7 +110,7 @@ def extract_features():
                                 global_counts['pos'][trigram] += 1
 
                     # --- ROLLING WINDOW FÜR DAS TRAINING ---
-                    if current_length >= 500:
+                    if current_length >= 1000:
                         sample_records.append({
                             "author": author, "title": f"{filename}_{chunk_index}",
                             "w": dict(current_w), "p": dict(Counter(current_syntactic_trigrams)), "m": dict(current_m)
@@ -124,17 +118,19 @@ def extract_features():
                         current_w, current_m, current_syntactic_trigrams = Counter(), Counter(), []
                         current_length, chunk_index = 0, chunk_index + 1
 
-            # Rest verarbeiten
-            if current_length >= 500 or (chunk_index == 0 and current_length >= 100):
-                sample_records.append({
-                    "author": author, "title": f"{filename}_{chunk_index}",
-                    "w": dict(current_w), "p": dict(Counter(current_syntactic_trigrams)), "m": dict(current_m)
-                })
+                if current_length >= 1000 or (chunk_index == 0 and current_length >= 250):
+                    sample_records.append({
+                        "author": author, "title": f"{filename}_{chunk_index}",
+                        "w": dict(current_w), "p": dict(Counter(current_syntactic_trigrams)), "m": dict(current_m)
+                    })
 
-    top_words = [w for w, _ in global_counts['words'].most_common(100)]
+    MFW_COUNT = 150
+    top_words = [w for w, _ in global_counts['words'].most_common(MFW_COUNT)]
+
     top_pos = [f"{p[0]}_{p[1]}_{p[2]}" for p, _ in global_counts['pos'].most_common(100)]
     top_morph = [m for m, _ in global_counts['morph'].most_common(100)]
 
+    # Export the dynamically calculated vocabulary for the inference script
     with open(vocab_json, 'w', encoding='utf-8') as f:
         json.dump({'words': top_words, 'pos': top_pos, 'morph': top_morph}, f)
 
