@@ -11,6 +11,7 @@ import warnings
 
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
+# --- NLP Setup ---
 spacy.prefer_gpu()
 nlp = spacy.load("grc_odycy_joint_trf")
 nlp.max_length = 3000000
@@ -18,8 +19,9 @@ nlp.max_length = 3000000
 if "sentencizer" not in nlp.pipe_names:
     nlp.add_pipe("sentencizer")
 
+
 def read_file_safely(file_path):
-    """Sicheres Einlesen mit Encoding-Fallback"""
+    """Safely decode Greek texts with multiple fallbacks."""
     encodings = ['utf-8-sig', 'utf-8', 'iso-8859-7', 'windows-1253', 'latin-1']
     last_error = None
     for enc in encodings:
@@ -29,46 +31,32 @@ def read_file_safely(file_path):
         except UnicodeDecodeError as e:
             last_error = e
             continue
-    raise ValueError(f"Konnte nicht decodiert werden. Letzter Fehler: {last_error}")
+    raise ValueError(f"Could not decode file {file_path}. Last error: {last_error}")
 
 
 def clean_text(text, filename):
-    """
-    Dynamisches Parsing für heterogene Korpora: Repariert XML-Fragmente
-    und entfernt Metadaten (teiHeader).
-    """
+    """Parses XML cleanly, deletes TEI-Headers and removes conjectures from TXT."""
     if filename.lower().endswith('.xml'):
-        # 1. Entferne eventuelle XML-Deklarationen, die den Wrapper stören würden
         text = re.sub(r'<\?xml.*?\?>', '', text).strip()
-
-        # 2. Künstlicher Root-Knoten (<document>) repariert fragmentarische
-        # XML-Dateien (wie Basilius), damit der Parser nicht abstürzt.
         wrapped_text = f"<document>{text}</document>"
-
         try:
             soup = BeautifulSoup(wrapped_text, "xml")
-
-            # TEI-Header (Metadaten) restlos löschen,
-            # da diese sonst die syntaktische Trigramm-Statistik verfälschen!
             for header in soup.find_all('teiHeader'):
                 header.decompose()
-
             text = soup.get_text(separator=' ')
         except Exception:
-            # Fallback
             text = re.sub(r'<[^>]+>', ' ', text)
     else:
-        # Entfernen von eckigen Klammern (Konjekturen),
-        # damit rekonstruierte Wörter (z.B. <θεὸς>) erhalten bleiben.
         text = text.replace('<', '').replace('>', '')
 
-    # Bereinige doppelte Leerzeichen und Zeilenumbrüche
     text = re.sub(r'\s+', ' ', text)
     return text.strip()
 
 
 def build_bible_vectorizer(bible_path="greek_bible.txt"):
+    """Builds a TF-IDF character-trigram space of the Septuagint/NT to filter out citations."""
     if not os.path.exists(bible_path):
+        print(f"[Warning] Bible reference file '{bible_path}' not found. Quotes will not be filtered.")
         return None, None
     with open(bible_path, 'r', encoding='utf-8', errors='ignore') as f:
         bible_text = f.read()
@@ -86,50 +74,54 @@ def build_bible_vectorizer(bible_path="greek_bible.txt"):
 
 
 def extract_inference_features():
+    # --- Configuration ---
     INFERENCE_FOLDER = "data/inference/pseudo_corpus"
-    vocab_json = "top_features_vocabulary.json"
-    output_csv = "inference_features.csv"
+    BIBLE_PATH = "greek_bible.txt"
+    VOCAB_JSON = "top_features_vocabulary.json"
+    OUTPUT_CSV = "inference_features.csv"
 
-    print("--- Starte Feature-Extraktion (Inferenzkorpus/Rolling Window) ---")
+    print("--- Starting Feature Extraction (Inference Corpus) ---")
 
-    if not os.path.exists(vocab_json):
+    if not os.path.exists(VOCAB_JSON):
         raise FileNotFoundError(
-            f"[Kritischer Fehler] Vokabular '{vocab_json}' fehlt. Zuerst Trainingsskript ausführen.")
+            f"[Critical Error] Vocabulary '{VOCAB_JSON}' is missing. Run training extraction first.")
 
-    # Vokabular aus der Trainingsphase laden
-    with open(vocab_json, 'r', encoding='utf-8') as f:
+    # Load dynamic vocabulary from the training phase
+    with open(VOCAB_JSON, 'r', encoding='utf-8') as f:
         vocab = json.load(f)
         top_words = vocab['words']
         top_pos = vocab['pos']
         top_morph = vocab['morph']
 
-    vectorizer, bible_tfidf = build_bible_vectorizer()
+    vectorizer, bible_tfidf = build_bible_vectorizer(BIBLE_PATH)
 
     def is_bible_quote(sentence_text, threshold=0.85):
-        if not vectorizer or len(sentence_text) < 15: return False
+        if not vectorizer or len(sentence_text) < 15:
+            return False
         s_vec = vectorizer.transform([sentence_text])
         return cosine_similarity(s_vec, bible_tfidf).max() >= threshold
 
     sample_records = []
 
-    for filename in os.listdir(INFERENCE_FOLDER):
-        file_path = os.path.join(INFERENCE_FOLDER, filename)
+    if not os.path.exists(INFERENCE_FOLDER):
+        raise FileNotFoundError(f"[Critical Error] Inference directory '{INFERENCE_FOLDER}' does not exist.")
 
-        # Ignoriere Unterordner oder Systemdateien
-        if not os.path.isfile(file_path) or filename.startswith('.'):
+    for filename in os.listdir(INFERENCE_FOLDER):
+        if filename.startswith('.'):
             continue
 
+        file_path = os.path.join(INFERENCE_FOLDER, filename)
         try:
             raw_text = read_file_safely(file_path)
             raw_text = clean_text(raw_text, filename)
 
             if len(raw_text) < 50:
-                print(f"[Übersprungen] '{filename}' enthält zu wenig verwertbaren Text.")
+                print(f"[Skipped] '{filename}' contains insufficient text.")
                 continue
 
             doc = nlp(raw_text)
         except Exception as e:
-            print(f"[Kritischer Fehler] Datei '{filename}' übersprungen: {e}")
+            print(f"[Error] Skipping file '{filename}': {e}")
             continue
 
         current_w = {}
@@ -144,64 +136,63 @@ def extract_inference_features():
                 current_length += len(sent)
 
                 for token in sent:
-                    # Dynamische Erfassung aller alphabetischen Tokens
+                    # 1. Dynamic Extraction of all alphabet tokens
                     if token.is_alpha:
                         lemma = token.lemma_.lower()
                         current_w[lemma] = current_w.get(lemma, 0) + 1
 
+                    # 2. Morphological Features
                     if token.morph:
                         morph_str = str(token.morph)
                         current_m[morph_str] = current_m.get(morph_str, 0) + 1
 
-                    # Syntaktische POS-Trigramme
+                    # 3. Syntactic POS Trigrams
                     children = sorted(list(token.children), key=lambda c: c.i)
                     if len(children) >= 2:
                         for i in range(len(children) - 1):
                             trigram = (children[i].pos_, token.pos_, children[i + 1].pos_)
                             current_syntactic_trigrams.append(trigram)
 
-            # Rolling Window: Angehoben auf >= 1000 Tokens
-            if current_length >= 1000:
-                p_c = Counter(current_syntactic_trigrams)
-
-                row = {"Auteur": "Pseudo", "Titre": f"{filename}_{chunk_index}"}
-
-                # Zuweisung basierend auf dem geladenen JSON-Vokabular
-                for w in top_words: row[f"LEMMA_{w}"] = current_w.get(w, 0)
-
-                pos_dict = {f"{k[0]}_{k[1]}_{k[2]}": v for k, v in p_c.items()}
-                for p in top_pos: row[f"POS_{p}"] = pos_dict.get(p, 0)
-                for m in top_morph: row[f"MORPH_{m}"] = current_m.get(m, 0)
-
-                sample_records.append(row)
-
-                # Reset für den nächsten Chunk
-                current_w = {}
-                current_m = {}
-                current_syntactic_trigrams = []
-                current_length = 0
-                chunk_index += 1
-
-        # Restlichen Text verarbeiten (letzter Chunk)
-        if current_length >= 1000 or (chunk_index == 0 and current_length >= 250):
-            if chunk_index == 0 and current_length < 1000:
-                print(
-                    f"[Methodische Warnung] Text '{filename}' ist mit {current_length} Tokens sehr kurz (Resultate statistisch instabil).")
-
+        # --- ROLLING WINDOW ---
+        if current_length >= 1000:
             p_c = Counter(current_syntactic_trigrams)
-
             row = {"Auteur": "Pseudo", "Titre": f"{filename}_{chunk_index}"}
-            for w in top_words: row[f"LEMMA_{w}"] = current_w.get(w, 0)
 
+            # Map dynamically to the established feature space
+            for w in top_words: row[f"LEMMA_{w}"] = current_w.get(w, 0)
             pos_dict = {f"{k[0]}_{k[1]}_{k[2]}": v for k, v in p_c.items()}
             for p in top_pos: row[f"POS_{p}"] = pos_dict.get(p, 0)
             for m in top_morph: row[f"MORPH_{m}"] = current_m.get(m, 0)
 
             sample_records.append(row)
 
+            # Reset memory for the next chunk
+            current_w, current_m, current_syntactic_trigrams = {}, {}, []
+            current_length = 0
+            chunk_index += 1
+
+        # Process the remaining tail chunk
+        if current_length >= 1000 or (chunk_index == 0 and current_length >= 250):
+            if chunk_index == 0 and current_length < 1000:
+                print(
+                    f"[Warning] Text '{filename}' is very short ({current_length} tokens). Results may be statistically unstable.")
+
+            p_c = Counter(current_syntactic_trigrams)
+            row = {"Auteur": "Pseudo", "Titre": f"{filename}_{chunk_index}"}
+
+            for w in top_words: row[f"LEMMA_{w}"] = current_w.get(w, 0)
+            pos_dict = {f"{k[0]}_{k[1]}_{k[2]}": v for k, v in p_c.items()}
+            for p in top_pos: row[f"POS_{p}"] = pos_dict.get(p, 0)
+            for m in top_morph: row[f"MORPH_{m}"] = current_m.get(m, 0)
+
+            sample_records.append(row)
+
+    print("\n--- Step 2: Formatting Final Inference Matrix ---")
     df_infer = pd.DataFrame(sample_records).fillna(0)
-    df_infer.to_csv(output_csv, index=False)
-    print(f"-> Inference Features formatiert und gespeichert in '{output_csv}'")
+    df_infer.to_csv(OUTPUT_CSV, index=False)
+
+    print(f"[Success] Inference features formatted and saved to '{OUTPUT_CSV}'")
+    print(f"[Info] Shape of the inference matrix: {df_infer.shape}")
 
 
 if __name__ == "__main__":
