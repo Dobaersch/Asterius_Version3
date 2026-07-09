@@ -7,6 +7,7 @@ import spacy
 from bs4 import BeautifulSoup
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
+import unicodedata
 import warnings
 
 warnings.simplefilter(action='ignore', category=FutureWarning)
@@ -18,6 +19,14 @@ nlp.max_length = 3000000
 
 if "sentencizer" not in nlp.pipe_names:
     nlp.add_pipe("sentencizer")
+
+
+def strip_greek_diacritics(text):
+    """
+    Removes polytonic accents and breathings for pure character matching.
+    Converts to lowercase to ensure absolute baseline string comparison.
+    """
+    return ''.join(c for c in unicodedata.normalize('NFD', text) if unicodedata.category(c) != 'Mn').lower()
 
 
 def read_file_safely(file_path):
@@ -54,7 +63,9 @@ def clean_text(text, filename):
 
 
 def build_bible_vectorizer(bible_path="greek_bible.txt"):
-    """Builds a TF-IDF character-trigram space of the Septuagint/NT to filter out citations."""
+    """
+    Builds a TF-IDF WORD-space of the Septuagint/NT to filter out citations.
+    """
     if not os.path.exists(bible_path):
         print(f"[Warning] Bible reference file '{bible_path}' not found. Quotes will not be filtered.")
         return None, None
@@ -68,8 +79,13 @@ def build_bible_vectorizer(bible_path="greek_bible.txt"):
     if not bible_sentences:
         return None, None
 
-    vectorizer = TfidfVectorizer(analyzer='char', ngram_range=(3, 5))
-    bible_tfidf = vectorizer.fit_transform(bible_sentences)
+    # Apply strict normalization to the training data
+    normalized_bible = [strip_greek_diacritics(s) for s in bible_sentences]
+
+    # Strictly check on word-level to prevent false positives with pagan authors
+    vectorizer = TfidfVectorizer(analyzer='word', ngram_range=(3, 4))
+    bible_tfidf = vectorizer.fit_transform(normalized_bible)
+
     return vectorizer, bible_tfidf
 
 
@@ -95,11 +111,21 @@ def extract_inference_features():
 
     vectorizer, bible_tfidf = build_bible_vectorizer(BIBLE_PATH)
 
-    def is_bible_quote(sentence_text, threshold=0.85):
+    def is_bible_quote(sentence_text, threshold=0.50):
         if not vectorizer or len(sentence_text) < 15:
             return False
-        s_vec = vectorizer.transform([sentence_text])
-        return cosine_similarity(s_vec, bible_tfidf).max() >= threshold
+
+        # Normalize the incoming sentence exactly like the bible corpus
+        normalized_sentence = strip_greek_diacritics(sentence_text)
+
+        s_vec = vectorizer.transform([normalized_sentence])
+        max_score = cosine_similarity(s_vec, bible_tfidf).max()
+
+        if max_score >= threshold:
+            print("  [Filtered] Bible quote removed.")
+            return True
+
+        return False
 
     sample_records = []
 
