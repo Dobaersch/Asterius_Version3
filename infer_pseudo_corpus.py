@@ -46,8 +46,9 @@ def compute_asterius_profile(model, preprocessor, train_csv_path):
     mean_ast_dist = np.mean(ast_distances)
     std_ast_dist = np.std(ast_distances)
 
-    # The boundary is exactly the Mean + 3 Standard Deviations (captures 99.7% of Asterius' style)
-    dynamic_threshold = mean_ast_dist + (3 * std_ast_dist)
+    # The boundary is exactly the Mean + 2 Standard Deviations (captures ~95% of Asterius' style)
+    # Using 3 Std was too generous and allowed too many false positives.
+    dynamic_threshold = mean_ast_dist + (2 * std_ast_dist)
 
     return centroid, dynamic_threshold, feature_cols, X_ast_scaled
 

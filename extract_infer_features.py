@@ -64,32 +64,33 @@ def clean_text(text, filename):
 
 def build_bible_vectorizer(bible_path="greek_bible.txt"):
     """
-    Builds a TF-IDF WORD-space of the Septuagint/NT to filter out citations.
+    Builds a set of all 4-grams in the Septuagint/NT to exactly filter out citations.
     """
     if not os.path.exists(bible_path):
         print(f"[Warning] Bible reference file '{bible_path}' not found. Quotes will not be filtered.")
-        return None, None
+        return None
     with open(bible_path, 'r', encoding='utf-8', errors='ignore') as f:
-        bible_text = f.read()
+        bible_lines = f.readlines()
 
-    bible_text = re.sub(r'\s+', ' ', bible_text).strip()
-    bible_sentences = re.split(r'[.·;]+', bible_text)
-    bible_sentences = [s.strip() for s in bible_sentences if len(s.strip()) > 10]
+    bible_sentences = []
+    for line in bible_lines:
+        cleaned = re.sub(r'\s+', ' ', line).strip()
+        if len(cleaned) > 10:
+            bible_sentences.append(cleaned)
 
     if not bible_sentences:
-        return None, None
+        return None
 
     normalized_bible = [strip_greek_diacritics(s) for s in bible_sentences]
+    
+    bible_ngrams = set()
+    for sent in normalized_bible:
+        words = sent.split()
+        if len(words) >= 4:
+            for i in range(len(words) - 3):
+                bible_ngrams.add(tuple(words[i:i+4]))
 
-    vectorizer = TfidfVectorizer(
-        analyzer='word',
-        ngram_range=(1, 2),
-        max_df=0.015,
-        min_df=2
-    )
-    bible_tfidf = vectorizer.fit_transform(normalized_bible)
-
-    return vectorizer, bible_tfidf
+    return bible_ngrams
 
 
 def extract_inference_features():
@@ -111,19 +112,28 @@ def extract_inference_features():
         top_pos = vocab['pos']
         top_morph = vocab['morph']
 
-    vectorizer, bible_tfidf = build_bible_vectorizer(BIBLE_PATH)
+    bible_ngrams = build_bible_vectorizer(BIBLE_PATH)
 
-    def is_bible_quote(sentence_text, threshold=0.15):
-        if not vectorizer or len(sentence_text) < 15:
+    def is_bible_quote(sentence_text):
+        if not bible_ngrams or len(sentence_text) < 15:
             return False
 
         normalized_sentence = strip_greek_diacritics(sentence_text)
-        s_vec = vectorizer.transform([normalized_sentence])
+        words = normalized_sentence.split()
+        if len(words) < 8:
+            return False
 
-        max_score = cosine_similarity(s_vec, bible_tfidf).max()
+        marked = [False] * len(words)
+        for i in range(len(words) - 3):
+            if tuple(words[i:i+4]) in bible_ngrams:
+                marked[i] = True
+                marked[i+1] = True
+                marked[i+2] = True
+                marked[i+3] = True
 
-        if max_score >= threshold:
-            print("  [Filtered] Bible quote removed.")
+        matching_words = sum(marked)
+        if matching_words >= 8:
+            print(f"  [Filtered] Bible quote removed (fuzzy match, {matching_words} words overlap).")
             return True
 
         return False
