@@ -7,10 +7,9 @@ from torch.optim.lr_scheduler import CosineAnnealingLR
 from torch.utils.data import Dataset, DataLoader
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import StratifiedKFold
-from sklearn.decomposition import PCA
 from sklearn.pipeline import Pipeline
-from sklearn.neighbors import KNeighborsClassifier
-from sklearn.metrics import accuracy_score, f1_score
+from sklearn.metrics import silhouette_score
+import torch.nn.functional as F
 import joblib
 import warnings
 
@@ -30,285 +29,217 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 class PatristicTripletDataset(Dataset):
     """
     Dataset for Siamese Network generating Anchors, Positives, and Negatives.
-    Applies Gaussian noise augmentation to prevent memorisation on small corpora.
+    Learns a universal stylometric embedding space by sampling anchors from ALL authors.
+    Applies Gaussian noise augmentation to prevent memorisation.
     """
 
-    def __init__(self, df, feature_cols, noise_std=0.05, training=True):
+    def __init__(self, df, feature_cols, noise_std=0.02, training=True):
         self.feature_cols = feature_cols
         self.noise_std = noise_std
         self.training = training
 
-        asterius_mask = df['Auteur'].str.contains('Asterius', case=False, na=False)
-        self.asterius_df = df[asterius_mask][self.feature_cols].values.astype(np.float32)
-        other_df = df[~asterius_mask]
-
-        hard_neg_pattern = 'Basilius|Severian|Chrysostomos|Gregor_nazianz|Gregor_nyssa'
-        hard_mask = other_df['Auteur'].str.contains(hard_neg_pattern, case=False, na=False)
-
-        self.hard_negatives_df = other_df[hard_mask][self.feature_cols].values.astype(np.float32)
-        self.easy_negatives_df = other_df[~hard_mask][self.feature_cols].values.astype(np.float32)
-
-    def _add_noise(self, sample):
-        """Gaussian noise augmentation to create unique samples each epoch."""
-        if self.training and self.noise_std > 0:
-            noise = np.random.randn(*sample.shape).astype(np.float32) * self.noise_std
-            return sample + noise
-        return sample
+        self.df = df.reset_index(drop=True)
+        self.authors = self.df['Auteur'].unique()
 
     def __len__(self):
-        return len(self.asterius_df)
+        return len(self.df)
 
     def __getitem__(self, idx):
-        anchor = self._add_noise(self.asterius_df[idx].copy())
+        # 1. Anchor
+        anchor_row = self.df.iloc[idx]
+        anchor_author = anchor_row['Auteur']
+        anchor = anchor_row[self.feature_cols].values.astype(np.float32)
 
-        positive_idx = np.random.choice([i for i in range(len(self.asterius_df)) if i != idx])
-        positive = self._add_noise(self.asterius_df[positive_idx].copy())
+        # 2. Positive (Same author)
+        positive_candidates = self.df[self.df['Auteur'] == anchor_author]
+        if len(positive_candidates) > 1:
+            positive_candidates = positive_candidates.drop(positive_candidates.index[positive_candidates.index == idx])
 
-        if len(self.hard_negatives_df) > 0 and (np.random.rand() < 0.5 or len(self.easy_negatives_df) == 0):
-            neg_idx = np.random.randint(0, len(self.hard_negatives_df))
-            negative = self.hard_negatives_df[neg_idx].copy()
-        else:
-            neg_idx = np.random.randint(0, len(self.easy_negatives_df))
-            negative = self.easy_negatives_df[neg_idx].copy()
+        positive = positive_candidates.sample(1).iloc[0][self.feature_cols].values.astype(np.float32)
 
-        # No noise on negatives — they should stay distinct
+        # 3. Negative (Different author)
+        negative_candidates = self.df[self.df['Auteur'] != anchor_author]
+        negative = negative_candidates.sample(1).iloc[0][self.feature_cols].values.astype(np.float32)
+
+        # Augmentation
+        if self.training:
+            anchor += np.random.normal(0, self.noise_std, anchor.shape)
+            positive += np.random.normal(0, self.noise_std, positive.shape)
+            negative += np.random.normal(0, self.noise_std, negative.shape)
+
         return torch.FloatTensor(anchor), torch.FloatTensor(positive), torch.FloatTensor(negative)
 
 
 class SiameseTabularNet(nn.Module):
     """
-    Compact Siamese network with BatchNorm and higher Dropout.
-    Reduced capacity (input→64→32) to match small corpus size.
+    A deep neural network to compress stylometric features into a highly dense embedding space.
+    Uses LayerNorm and Dropout for regularisation.
     """
 
-    def __init__(self, input_size):
+    def __init__(self, input_size, embedding_size=8):
         super(SiameseTabularNet, self).__init__()
-        self.fc = nn.Sequential(
-            nn.Linear(input_size, 64),
-            nn.BatchNorm1d(64),
+
+        self.net = nn.Sequential(
+            nn.Linear(input_size, 128),
+            nn.LayerNorm(128),
             nn.ReLU(),
-            nn.Dropout(0.5),
+            nn.Dropout(0.3),
+
+            nn.Linear(128, 64),
+            nn.LayerNorm(64),
+            nn.ReLU(),
+            nn.Dropout(0.2),
+
             nn.Linear(64, 32),
-            nn.BatchNorm1d(32),
+            nn.LayerNorm(32),
             nn.ReLU(),
-            nn.Dropout(0.5),
-            nn.Linear(32, 16)
+
+            nn.Linear(32, embedding_size)
         )
 
     def forward(self, x):
-        return self.fc(x)
+        return self.net(x)
 
 
-def online_semi_hard_mining(anchor_out, positive_out, negative_out, margin):
-    """
-    Filters triplets to keep only semi-hard examples where:
-        d(a, p) < d(a, n) < d(a, p) + margin
-    Falls back to all triplets if no semi-hard examples exist.
-    Returns a mask of valid triplet indices.
-    """
-    with torch.no_grad():
-        d_ap = torch.nn.functional.pairwise_distance(anchor_out, positive_out)
-        d_an = torch.nn.functional.pairwise_distance(anchor_out, negative_out)
-
-        # Semi-hard: negative is farther than positive but within margin
-        semi_hard_mask = (d_an > d_ap) & (d_an < d_ap + margin)
-
-        # If no semi-hard triplets exist, also include hard negatives (d_an < d_ap)
-        if semi_hard_mask.sum() == 0:
-            semi_hard_mask = d_an < d_ap + margin
-
-        # Absolute fallback: use all
-        if semi_hard_mask.sum() == 0:
-            semi_hard_mask = torch.ones_like(d_ap, dtype=torch.bool)
-
-    return semi_hard_mask
-
-
-def train_model_instance(train_dataloader, model, epochs, learning_rate, margin=2.0,
-                         patience=15, verbose=False, val_dataloader=None):
-    """
-    Core training loop with:
-    - TripletMarginLoss (margin=2.0)
-    - Online semi-hard triplet mining
-    - Cosine Annealing LR scheduler
-    - Early stopping based on training loss plateau
-    - Weight Decay (L2 regularisation)
-    """
-    criterion = nn.TripletMarginLoss(margin=margin, p=2, reduction='none')
-    optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=1e-4)
-    scheduler = CosineAnnealingLR(optimizer, T_max=epochs, eta_min=learning_rate * 0.01)
+def train_model_instance(dataloader, model, epochs, learning_rate, verbose=False):
+    criterion = nn.TripletMarginLoss(margin=1.0, p=2)
+    optimizer = optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=1e-4)
+    scheduler = CosineAnnealingLR(optimizer, T_max=epochs)
 
     best_loss = float('inf')
     patience_counter = 0
+    patience_limit = 15
 
     for epoch in range(epochs):
         model.train()
-        total_train_loss = 0.0
-        n_triplets_used = 0
+        epoch_loss = 0.0
 
-        for anchor, positive, negative in train_dataloader:
+        for anchor, positive, negative in dataloader:
             anchor, positive, negative = anchor.to(device), positive.to(device), negative.to(device)
 
             optimizer.zero_grad()
-            out_a, out_p, out_n = model(anchor), model(positive), model(negative)
 
-            # Per-triplet loss (reduction='none')
-            losses = criterion(out_a, out_p, out_n)
+            emb_a = model(anchor)
+            emb_p = model(positive)
+            emb_n = model(negative)
 
-            # Semi-hard mining: only backpropagate informative triplets
-            mask = online_semi_hard_mining(out_a, out_p, out_n, margin)
-            if mask.sum() > 0:
-                loss = losses[mask].mean()
-            else:
-                loss = losses.mean()
-
+            loss = criterion(emb_a, emb_p, emb_n)
             loss.backward()
             optimizer.step()
 
-            total_train_loss += loss.item() * mask.sum().item()
-            n_triplets_used += mask.sum().item()
+            epoch_loss += loss.item()
 
         scheduler.step()
+        avg_loss = epoch_loss / len(dataloader)
 
-        avg_train_loss = total_train_loss / max(n_triplets_used, 1)
-
-        # Validation loss (if available)
-        val_loss_str = ""
-        if val_dataloader is not None:
-            model.eval()
-            total_val_loss = 0.0
-            n_val = 0
-            with torch.no_grad():
-                for anchor, positive, negative in val_dataloader:
-                    anchor, positive, negative = anchor.to(device), positive.to(device), negative.to(device)
-                    out_a, out_p, out_n = model(anchor), model(positive), model(negative)
-                    losses = criterion(out_a, out_p, out_n)
-                    total_val_loss += losses.sum().item()
-                    n_val += len(losses)
-            avg_val_loss = total_val_loss / max(n_val, 1)
-            val_loss_str = f" | Val Triplet Loss: {avg_val_loss:.4f}"
-
-        if verbose and (epoch + 1) % 20 == 0:
-            lr_now = scheduler.get_last_lr()[0]
-            print(f"    Epoch {epoch + 1:03d}/{epochs} | Train Loss: {avg_train_loss:.4f}{val_loss_str} | LR: {lr_now:.6f}")
-
-        # Early stopping: if loss hasn't meaningfully improved
-        if avg_train_loss < best_loss - 1e-4:
-            best_loss = avg_train_loss
+        if avg_loss < best_loss:
+            best_loss = avg_loss
             patience_counter = 0
         else:
             patience_counter += 1
 
-        if patience_counter >= patience:
+        if verbose and (epoch + 1) % 10 == 0:
+            print(
+                f"    Epoch {epoch + 1:03d}/{epochs} | Train Loss: {avg_loss:.4f} | LR: {scheduler.get_last_lr()[0]:.6f}")
+
+        if patience_counter >= patience_limit:
             if verbose:
-                print(f"    [Early Stop] No improvement for {patience} epochs at epoch {epoch + 1}.")
+                print(f"    [Early Stop] No improvement for {patience_limit} epochs at epoch {epoch + 1}.")
             break
 
+    return model
 
-def evaluate_pca_variance(df, feature_cols, variance_thresholds=[0.90, 0.95, 0.99], k_folds=5, epochs=100,
-                          batch_size=16, learning_rate=0.001):
+
+def evaluate_model_robustness(df, feature_cols):
     """
-    Acts as a manual GridSearch for PCA variance threshold utilizing a scikit-learn Pipeline.
-    Now includes validation triplet loss monitoring for overfitting detection.
+    Evaluates the Siamese Network directly on scaled features without PCA.
+    Uses Silhouette Score to measure clustering quality.
     """
-    print(f"\n[Info] Starting Dimensionality Reduction Evaluation...")
-    best_variance = None
-    best_f1 = -1.0
+    skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=RANDOM_SEED)
+    fold_silhouettes = []
 
-    for variance in variance_thresholds:
-        print(f"\n==================================================")
-        print(f"Evaluating PCA Variance Threshold: {variance * 100:.0f}%")
-        print(f"==================================================")
+    print(f"\n{'=' * 50}\nEvaluating Siamese Network (Full Feature Space)\n{'=' * 50}")
 
-        skf = StratifiedKFold(n_splits=k_folds, shuffle=True, random_state=RANDOM_SEED)
-        fold_f1_scores = []
+    for fold, (train_idx, val_idx) in enumerate(skf.split(df, df['Auteur'])):
+        train_df = df.iloc[train_idx]
+        val_df = df.iloc[val_idx]
 
-        for fold, (train_idx, val_idx) in enumerate(skf.split(df, df['Auteur'])):
-            train_df = df.iloc[train_idx].copy()
-            val_df = df.iloc[val_idx].copy()
+        # 1. Pipeline: ONLY Scaler, NO PCA
+        preprocessor = Pipeline([
+            ('scaler', StandardScaler())
+        ])
 
-            # Implementation of scikit-learn Pipeline
-            preprocessor = Pipeline([
-                ('scaler', StandardScaler()),
-                ('pca', PCA(n_components=variance, random_state=RANDOM_SEED))
-            ])
+        X_train_raw = train_df[feature_cols].astype(float)
+        X_val_raw = val_df[feature_cols].astype(float)
 
-            X_train_pca = preprocessor.fit_transform(train_df[feature_cols])
-            X_val_pca = preprocessor.transform(val_df[feature_cols])
+        preprocessor.fit(X_train_raw)
 
-            pca_dim = preprocessor.named_steps['pca'].n_components_
-            pca_cols = [f'PC_{i}' for i in range(pca_dim)]
+        train_df_scaled = train_df.copy()
+        val_df_scaled = val_df.copy()
 
-            train_pca_df = pd.concat([train_df[['Auteur']].reset_index(drop=True),
-                                      pd.DataFrame(X_train_pca, columns=pca_cols)], axis=1)
-            val_pca_df = pd.concat([val_df[['Auteur']].reset_index(drop=True),
-                                    pd.DataFrame(X_val_pca, columns=pca_cols)], axis=1)
+        train_df_scaled[feature_cols] = preprocessor.transform(X_train_raw)
+        val_df_scaled[feature_cols] = preprocessor.transform(X_val_raw)
 
-            # Training dataset with noise augmentation
-            train_dataset = PatristicTripletDataset(train_pca_df, feature_cols=pca_cols,
-                                                   noise_std=0.05, training=True)
-            train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+        current_dim = train_df_scaled[feature_cols].shape[1]
 
-            # Validation dataset without noise for honest evaluation
-            val_dataset = PatristicTripletDataset(val_pca_df, feature_cols=pca_cols,
-                                                 noise_std=0.0, training=False)
-            val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+        # 2. Dataset Setup
+        train_dataset = PatristicTripletDataset(train_df_scaled, feature_cols)
 
-            model = SiameseTabularNet(input_size=pca_dim).to(device)
-            train_model_instance(train_dataloader, model, epochs, learning_rate,
-                                 verbose=False, val_dataloader=val_dataloader)
+        # 3. Model Training
+        model = SiameseTabularNet(input_size=current_dim).to(device)
+        train_dataloader = DataLoader(train_dataset, batch_size=32, shuffle=True)
 
-            # k-NN Evaluation on Embeddings
-            model.eval()
-            with torch.no_grad():
-                train_embeddings = model(torch.FloatTensor(X_train_pca).to(device)).cpu().numpy()
-                val_embeddings = model(torch.FloatTensor(X_val_pca).to(device)).cpu().numpy()
+        # Train briefly for evaluation
+        train_model_instance(train_dataloader, model, epochs=25, learning_rate=0.001, verbose=False)
 
-            y_train_bin = train_df['Auteur'].str.contains('Asterius', case=False, na=False).astype(int).values
-            y_val_bin = val_df['Auteur'].str.contains('Asterius', case=False, na=False).astype(int).values
+        # 4. Generate Embeddings for validation
+        model.eval()
+        with torch.no_grad():
+            X_val_tensor = torch.FloatTensor(val_df_scaled[feature_cols].values).to(device)
+            val_embeddings = model(X_val_tensor)
+            val_embeddings = F.normalize(val_embeddings, p=2, dim=1).cpu().numpy()
 
-            knn = KNeighborsClassifier(n_neighbors=5, metric='cosine')
-            knn.fit(train_embeddings, y_train_bin)
-            y_pred = knn.predict(val_embeddings)
+        # 5. Evaluate Distances
+        y_val_binary = np.where(val_df['Auteur'].str.contains('Asterius', case=False), 1, 0)
 
-            fold_f1 = f1_score(y_val_bin, y_pred, zero_division=0)
-            fold_f1_scores.append(fold_f1)
+        if len(np.unique(y_val_binary)) > 1:
+            sil_score = silhouette_score(val_embeddings, y_val_binary, metric='euclidean')
+            fold_silhouettes.append(sil_score)
+        else:
+            fold_silhouettes.append(0.0)
 
-        mean_f1 = np.mean(fold_f1_scores)
-        print(f"[Result] {variance * 100}% Variance -> Mean F1-Score: {mean_f1:.4f} (Avg. {pca_dim} Dimensions)")
-
-        if mean_f1 > best_f1:
-            best_f1 = mean_f1
-            best_variance = variance
-
-    print(f"\n[Decision] Optimal PCA Variance Threshold determined as: {best_variance * 100:.0f}%")
-    return best_variance
+    # These lines are now correctly indented inside the function!
+    mean_silhouette = np.mean(fold_silhouettes)
+    print(f"[Result] Mean Silhouette Score across folds: {mean_silhouette:.4f} (using {current_dim} input features)")
 
 
-def train_final_model(df, feature_cols, optimal_variance, epochs=100, batch_size=16, learning_rate=0.001):
+def train_final_model(df, feature_cols):
     """
-    Trains final production model using the selected optimal variance and Pipeline.
+    Trains the final production model on 100% of the data WITHOUT PCA.
     """
-    print(f"\n[Info] Training Final Model on 100% of data (Variance: {optimal_variance * 100:.0f}%)...")
+    print(f"\n[Info] Training Final Model on 100% of data (Full Feature Space)...")
 
     preprocessor = Pipeline([
-        ('scaler', StandardScaler()),
-        ('pca', PCA(n_components=optimal_variance, random_state=RANDOM_SEED))
+        ('scaler', StandardScaler())
     ])
 
-    X_pca = preprocessor.fit_transform(df[feature_cols])
-    pca_dim = preprocessor.named_steps['pca'].n_components_
+    X_raw = df[feature_cols].astype(float)
+    preprocessor.fit(X_raw)
 
-    pca_cols = [f'PC_{i}' for i in range(pca_dim)]
-    pca_df = pd.concat([df[['Auteur']].reset_index(drop=True),
-                        pd.DataFrame(X_pca, columns=pca_cols)], axis=1)
+    df_scaled = df.copy()
+    df_scaled[feature_cols] = preprocessor.transform(X_raw)
 
-    full_dataset = PatristicTripletDataset(pca_df, feature_cols=pca_cols,
-                                          noise_std=0.05, training=True)
+    input_dim = df_scaled[feature_cols].shape[1]
+
+    # Initialize Dataset with scaled data
+    full_dataset = PatristicTripletDataset(df_scaled, feature_cols)
+    batch_size = min(32, len(full_dataset))
     full_dataloader = DataLoader(full_dataset, batch_size=batch_size, shuffle=True)
 
-    model = SiameseTabularNet(input_size=pca_dim).to(device)
-    train_model_instance(full_dataloader, model, epochs, learning_rate, verbose=True)
+    model = SiameseTabularNet(input_size=input_dim).to(device)
+
+    # Train for up to 100 epochs, Early Stopping will cut it short when optimal
+    train_model_instance(full_dataloader, model, epochs=100, learning_rate=0.0005, verbose=True)
 
     return model.cpu(), preprocessor
 
@@ -329,16 +260,16 @@ if __name__ == "__main__":
     exclude_cols = ['Auteur', 'Titre', 'Text']
     feature_cols = [col for col in df.columns if col not in exclude_cols]
 
-    # Step 1: Parameter Study / Grid Search equivalent for PCA Variance
-    optimal_variance = evaluate_pca_variance(df, feature_cols, variance_thresholds=[0.90, 0.95, 0.98])
+    # Step 1: Model Evaluation (replaces PCA Variance Search)
+    evaluate_model_robustness(df, feature_cols)
 
-    # Step 2: Final Model Training using Pipeline
-    trained_model, fitted_preprocessor = train_final_model(df, feature_cols, optimal_variance)
+    # Step 2: Final Model Training using full feature space
+    trained_model, fitted_preprocessor = train_final_model(df, feature_cols)
 
-    # Export Artifacts (Pipeline consolidates Scaler & PCA)
+    # Export Artifacts
     torch.save(trained_model.state_dict(), model_export_path)
     joblib.dump(fitted_preprocessor, preprocessor_export_path)
 
     print("\n--- Pipeline Execution Successful ---")
     print(f"[Success] Final Model saved to '{model_export_path}'")
-    print(f"[Success] Combined Preprocessor (Scaler + PCA) saved to '{preprocessor_export_path}'")
+    print(f"[Success] Scaler saved to '{preprocessor_export_path}'")

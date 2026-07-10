@@ -91,7 +91,7 @@ def build_bible_vectorizer(bible_path="greek_bible.txt"):
     normalized_bible = [strip_greek_diacritics(v) for v in bible_verses]
 
     # Strictly check on word-level to prevent false positives with pagan authors
-    vectorizer = TfidfVectorizer(analyzer='word', ngram_range=(2, 3))
+    vectorizer = TfidfVectorizer(analyzer='word', ngram_range=(4, 5))
     bible_tfidf = vectorizer.fit_transform(normalized_bible)
 
     return vectorizer, bible_tfidf
