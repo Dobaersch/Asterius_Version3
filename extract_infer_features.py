@@ -65,37 +65,31 @@ def clean_text(text, filename):
 def build_bible_vectorizer(bible_path="greek_bible.txt"):
     """
     Builds a TF-IDF WORD-space of the Septuagint/NT to filter out citations.
-    Splits the Bible by lines (one verse per line) and strips verse reference
-    prefixes (e.g. "Gen 1:1", "Sir Prolog:3") before vectorizing.
     """
     if not os.path.exists(bible_path):
         print(f"[Warning] Bible reference file '{bible_path}' not found. Quotes will not be filtered.")
         return None, None
     with open(bible_path, 'r', encoding='utf-8', errors='ignore') as f:
-        bible_lines = f.readlines()
+        bible_text = f.read()
 
-    # Each line is one verse: strip the "Book Ch:V" or "Book Prolog:N" prefix
-    verse_ref_pattern = re.compile(r'^[\w/]+\s+[\w]+:\d+\s*')
-    bible_verses = []
-    for line in bible_lines:
-        verse = verse_ref_pattern.sub('', line).strip()
-        if len(verse) > 10:
-            bible_verses.append(verse)
+    bible_text = re.sub(r'\s+', ' ', bible_text).strip()
+    bible_sentences = re.split(r'[.·;]+', bible_text)
+    bible_sentences = [s.strip() for s in bible_sentences if len(s.strip()) > 10]
 
-    if not bible_verses:
+    if not bible_sentences:
         return None, None
 
-    print(f"[Info] Bible corpus loaded: {len(bible_verses)} verses for citation filtering.")
+    normalized_bible = [strip_greek_diacritics(s) for s in bible_sentences]
 
-    # Apply strict normalization to the training data
-    normalized_bible = [strip_greek_diacritics(v) for v in bible_verses]
-
-    # Strictly check on word-level to prevent false positives with pagan authors
-    vectorizer = TfidfVectorizer(analyzer='word', ngram_range=(4, 5))
+    vectorizer = TfidfVectorizer(
+        analyzer='word',
+        ngram_range=(1, 2),
+        max_df=0.015,
+        min_df=2
+    )
     bible_tfidf = vectorizer.fit_transform(normalized_bible)
 
     return vectorizer, bible_tfidf
-
 
 
 def extract_inference_features():
@@ -108,8 +102,7 @@ def extract_inference_features():
     print("--- Starting Feature Extraction (Inference Corpus) ---")
 
     if not os.path.exists(VOCAB_JSON):
-        raise FileNotFoundError(
-            f"[Critical Error] Vocabulary '{VOCAB_JSON}' is missing. Run training extraction first.")
+        raise FileNotFoundError(f"[Critical Error] Vocabulary '{VOCAB_JSON}' is missing. Run training extraction first.")
 
     # Load dynamic vocabulary from the training phase
     with open(VOCAB_JSON, 'r', encoding='utf-8') as f:
@@ -120,14 +113,13 @@ def extract_inference_features():
 
     vectorizer, bible_tfidf = build_bible_vectorizer(BIBLE_PATH)
 
-    def is_bible_quote(sentence_text, threshold=0.50):
+    def is_bible_quote(sentence_text, threshold=0.15):
         if not vectorizer or len(sentence_text) < 15:
             return False
 
-        # Normalize the incoming sentence exactly like the bible corpus
         normalized_sentence = strip_greek_diacritics(sentence_text)
-
         s_vec = vectorizer.transform([normalized_sentence])
+
         max_score = cosine_similarity(s_vec, bible_tfidf).max()
 
         if max_score >= threshold:
@@ -188,26 +180,27 @@ def extract_inference_features():
                             trigram = (children[i].pos_, token.pos_, children[i + 1].pos_)
                             current_syntactic_trigrams.append(trigram)
 
-        # --- ROLLING WINDOW ---
-        if current_length >= 1000:
-            p_c = Counter(current_syntactic_trigrams)
-            row = {"Auteur": "Pseudo", "Titre": f"{filename}_{chunk_index}"}
+            # --- ROLLING WINDOW ---
+            # WICHTIG: Das Rolling Window ist nun eingerückt und läuft *innerhalb* der for-Schleife nach jedem Satz.
+            if current_length >= 1000:
+                p_c = Counter(current_syntactic_trigrams)
+                row = {"Auteur": "Pseudo", "Titre": f"{filename}_{chunk_index}"}
 
-            # Map dynamically to the established feature space
-            for w in top_words: row[f"LEMMA_{w}"] = current_w.get(w, 0)
-            pos_dict = {f"{k[0]}_{k[1]}_{k[2]}": v for k, v in p_c.items()}
-            for p in top_pos: row[f"POS_{p}"] = pos_dict.get(p, 0)
-            for m in top_morph: row[f"MORPH_{m}"] = current_m.get(m, 0)
+                # Map dynamically to the established feature space
+                for w in top_words: row[f"LEMMA_{w}"] = current_w.get(w, 0)
+                pos_dict = {f"{k[0]}_{k[1]}_{k[2]}": v for k, v in p_c.items()}
+                for p in top_pos: row[f"POS_{p}"] = pos_dict.get(p, 0)
+                for m in top_morph: row[f"MORPH_{m}"] = current_m.get(m, 0)
 
-            sample_records.append(row)
+                sample_records.append(row)
 
-            # Reset memory for the next chunk
-            current_w, current_m, current_syntactic_trigrams = {}, {}, []
-            current_length = 0
-            chunk_index += 1
+                # Reset memory for the next chunk
+                current_w, current_m, current_syntactic_trigrams = {}, {}, []
+                current_length = 0
+                chunk_index += 1
 
-        # Process the remaining tail chunk
-        if current_length >= 1000 or (chunk_index == 0 and current_length >= 250):
+        # Process the remaining tail chunk (nachdem die Predigt fertig gelesen wurde)
+        if current_length >= 250:
             if chunk_index == 0 and current_length < 1000:
                 print(
                     f"[Warning] Text '{filename}' is very short ({current_length} tokens). Results may be statistically unstable.")

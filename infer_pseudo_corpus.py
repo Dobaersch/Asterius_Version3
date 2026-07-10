@@ -13,49 +13,41 @@ import matplotlib
 matplotlib.use('Agg')  # Headless mode to prevent memory/tkinter crashes
 import matplotlib.pyplot as plt
 
-# Import the architecture dynamically from your training script
 from run_verification import SiameseTabularNet
 
-# Suppress visual clutter in the terminal
 warnings.simplefilter(action='ignore', category=FutureWarning)
 warnings.filterwarnings("ignore", category=UserWarning)
 
-# --- Device Configuration ---
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
 def compute_asterius_profile(model, preprocessor, train_csv_path):
-    """
-    Reconstructs the stylistic centroid (average vector) of Asterius
-    and calculates the dynamic inclusion threshold.
-    Uses the fitted preprocessor (StandardScaler) directly on the full feature space.
-    """
     df_train = pd.read_csv(train_csv_path)
 
-    # Isolate feature columns dynamically
     exclude_cols = ['Auteur', 'Titre', 'Text']
     feature_cols = [col for col in df_train.columns if col not in exclude_cols]
 
-    # Filter for known Asterius texts
     df_asterius = df_train[df_train['Auteur'].str.contains('Asterius', case=False, na=False)].copy()
 
-    # Apply pipeline: Scale ONLY (No PCA)
     X_ast_raw = df_asterius[feature_cols].astype(float)
     X_ast_scaled = preprocessor.transform(X_ast_raw)
 
-    # Generate Embeddings
     model.eval()
     with torch.no_grad():
         X_ast_tensor = torch.FloatTensor(X_ast_scaled).to(device)
         ast_embeddings = model(X_ast_tensor)
-        # L2-Normalize embeddings to map Euclidean space effectively
         ast_embeddings = F.normalize(ast_embeddings, p=2, dim=1).cpu().numpy()
 
-    # Calculate Centroid
     centroid = np.mean(ast_embeddings, axis=0)
 
-    # Using an empirical threshold derived from the Euclidean distances
-    dynamic_threshold = 2.5000
+    # --- DYNAMIC THRESHOLD FIX ---
+    # Calculates the exact boundary of the Asterius cluster using Standard Deviation
+    ast_distances = [dist.euclidean(emb, centroid) for emb in ast_embeddings]
+    mean_ast_dist = np.mean(ast_distances)
+    std_ast_dist = np.std(ast_distances)
+
+    # The boundary is exactly the Mean + 3 Standard Deviations (captures 99.7% of Asterius' style)
+    dynamic_threshold = mean_ast_dist + (3 * std_ast_dist)
 
     return centroid, dynamic_threshold, feature_cols, X_ast_scaled
 
@@ -72,15 +64,12 @@ def infer_pseudo_corpus():
 
     print("--- Phase 4: Inference & SHAP Analysis (Full Feature Space) ---")
 
-    # 1. Load Artefacts
     try:
-        # We now only load the single preprocessor pipeline
         preprocessor = joblib.load(PREPROCESSOR_PATH)
     except FileNotFoundError:
         print(f"[Error] Artefact missing. Please ensure '{PREPROCESSOR_PATH}' exists.")
         exit(1)
 
-    # Determine input size dynamically from inference features
     try:
         df_infer = pd.read_csv(INFER_CSV)
     except FileNotFoundError:
@@ -91,19 +80,15 @@ def infer_pseudo_corpus():
     feature_cols = [col for col in df_infer.columns if col not in exclude_cols]
     input_dim = len(feature_cols)
 
-    # Load Model Configuration
     model = SiameseTabularNet(input_size=input_dim).to(device)
     model.load_state_dict(torch.load(MODEL_PATH, map_location=device))
     model.eval()
 
-    # 2. Compute Centroid
     print("\n[Computing Asterius-Centroid...]")
     centroid, threshold, train_features, background_data_scaled = compute_asterius_profile(model, preprocessor,
                                                                                            TRAIN_CSV)
-    print(f"[Info] Demarcation Threshold set to: {threshold:.4f} (Euclidean Distance)")
+    print(f"[Info] Demarcation Threshold statistically set to: {threshold:.4f} (Euclidean Distance)")
 
-    # 3. Prepare SHAP Explainer
-    # We use random samples from the Asterius background to train the Explainer
     bg_sample_size = min(100, len(background_data_scaled))
     idx = np.random.choice(len(background_data_scaled), bg_sample_size, replace=False)
     bg_tensor = torch.FloatTensor(background_data_scaled[idx]).to(device)
@@ -128,29 +113,29 @@ def infer_pseudo_corpus():
 
         if distance <= threshold:
             attribution = "Asterius"
-        elif distance <= (threshold + 1.0):
+        elif distance <= (threshold + 0.15):  # Adjusted Grey Zone for tight L2 Space
             attribution = "Uncertain (Grey Zone)"
         else:
             attribution = "Foreign Author"
 
+        # EXPORTING THRESHOLD TO CSV FOR AGGREGATION SCRIPT
         results.append({
             'Document': str(titles.iloc[i]),
             'Distance_to_Centroid': distance,
+            'Threshold': threshold,
             'Classification': attribution
         })
 
-        # Generate SHAP only for relevant/close texts to save computation time
-        if distance <= (threshold + 1.5):
-            print(f"  [SHAP] Analyzing: {titles.iloc[i]} (Distance: {distance:.2f})")
+        # Generate SHAP only for texts close to Asterius to save computation time
+        if distance <= (threshold + 0.30):
+            print(f"  [SHAP] Analyzing: {titles.iloc[i]} (Distance: {distance:.4f})")
 
             current_instance_tensor = torch.FloatTensor(X_pseudo_scaled[i:i + 1]).to(device)
             current_instance_tensor.requires_grad_(True)
 
             shap_values = explainer.shap_values(current_instance_tensor, check_additivity=False)
-
             plot_shap_values = shap_values[0] if isinstance(shap_values, list) else shap_values
 
-            # --- PLOTTING DIRECT LINGUISTIC FEATURES ---
             plt.figure(figsize=(10, 6))
             shap.summary_plot(
                 plot_shap_values,
@@ -166,17 +151,14 @@ def infer_pseudo_corpus():
             safe_title = "".join(x for x in str(titles.iloc[i]) if x.isalnum() or x in "._- ")
             plt.savefig(os.path.join(SHAP_DIR, f"shap_{safe_title}.png"), bbox_inches='tight', dpi=300)
 
-            # --- MEMORY LEAK FIX ---
             plt.clf()
             plt.close('all')
             gc.collect()
 
-            # Export final results
     df_results = pd.DataFrame(results).sort_values(by='Distance_to_Centroid')
     df_results.to_csv(OUTPUT_CSV, index=False)
 
     print(f"\n[Success] Inference complete. Results saved to '{OUTPUT_CSV}'.")
-    print(f"[Success] SHAP explanations saved to directory '{SHAP_DIR}'.")
 
 
 if __name__ == "__main__":

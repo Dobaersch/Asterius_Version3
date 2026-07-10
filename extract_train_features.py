@@ -65,33 +65,29 @@ def clean_text(text, filename):
 def build_bible_vectorizer(bible_path="greek_bible.txt"):
     """
     Builds a TF-IDF WORD-space of the Septuagint/NT to filter out citations.
-    Splits the Bible by lines (one verse per line) and strips verse reference
-    prefixes (e.g. "Gen 1:1", "Sir Prolog:3") before vectorizing.
+    Uses max_df to automatically ignore highly frequent theological stopwords.
     """
     if not os.path.exists(bible_path):
         print(f"[Warning] Bible reference file '{bible_path}' not found. Quotes will not be filtered.")
         return None, None
     with open(bible_path, 'r', encoding='utf-8', errors='ignore') as f:
-        bible_lines = f.readlines()
+        bible_text = f.read()
 
-    # Each line is one verse: strip the "Book Ch:V" or "Book Prolog:N" prefix
-    verse_ref_pattern = re.compile(r'^[\w/]+\s+[\w]+:\d+\s*')
-    bible_verses = []
-    for line in bible_lines:
-        verse = verse_ref_pattern.sub('', line).strip()
-        if len(verse) > 10:
-            bible_verses.append(verse)
+    bible_text = re.sub(r'\s+', ' ', bible_text).strip()
+    bible_sentences = re.split(r'[.·;]+', bible_text)
+    bible_sentences = [s.strip() for s in bible_sentences if len(s.strip()) > 10]
 
-    if not bible_verses:
+    if not bible_sentences:
         return None, None
 
-    print(f"[Info] Bible corpus loaded: {len(bible_verses)} verses for citation filtering.")
+    normalized_bible = [strip_greek_diacritics(s) for s in bible_sentences]
 
-    # Apply strict normalization to the training data
-    normalized_bible = [strip_greek_diacritics(v) for v in bible_verses]
-
-    # Strictly check on word-level to prevent false positives with pagan authors
-    vectorizer = TfidfVectorizer(analyzer='word', ngram_range=(4, 5))
+    vectorizer = TfidfVectorizer(
+        analyzer='word',
+        ngram_range=(1, 2),
+        max_df=0.1,
+        min_df=2
+    )
     bible_tfidf = vectorizer.fit_transform(normalized_bible)
 
     return vectorizer, bible_tfidf
@@ -108,14 +104,13 @@ def extract_train_features():
 
     vectorizer, bible_tfidf = build_bible_vectorizer(BIBLE_PATH)
 
-    def is_bible_quote(sentence_text, threshold=0.50):
+    def is_bible_quote(sentence_text, threshold=0.15):
         if not vectorizer or len(sentence_text) < 15:
             return False
 
-        # Normalize the incoming sentence exactly like the bible corpus
         normalized_sentence = strip_greek_diacritics(sentence_text)
-
         s_vec = vectorizer.transform([normalized_sentence])
+
         max_score = cosine_similarity(s_vec, bible_tfidf).max()
 
         if max_score >= threshold:
@@ -191,7 +186,8 @@ def extract_train_features():
                                 current_syntactic_trigrams.append(trigram)
                                 global_counts['pos'][f"{trigram[0]}_{trigram[1]}_{trigram[2]}"] += 1
 
-                # Rolling Window threshold mathematically fixed to >= 1000
+                # --- ROLLING WINDOW ---
+                # Dies ist nun korrekt eingerückt und splittet das Training exakt in 1000er Blöcke
                 if current_length >= 1000:
                     sample_records.append({
                         "author": author.capitalize(),
@@ -207,7 +203,8 @@ def extract_train_features():
                     chunk_index += 1
 
             # Process the remaining tail chunk
-            if current_length >= 1000 or (chunk_index == 0 and current_length >= 250):
+            # Belässt Reststücke, die mindestens 250 Wörter haben, um keine Daten zu verschenken
+            if current_length >= 250:
                 sample_records.append({
                     "author": author.capitalize(),
                     "title": f"{filename}_{chunk_index}",
