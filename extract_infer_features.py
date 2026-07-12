@@ -2,11 +2,8 @@ import os
 import re
 import pandas as pd
 import json
-from collections import Counter
 import spacy
 from bs4 import BeautifulSoup
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
 import unicodedata
 import warnings
 
@@ -32,147 +29,120 @@ def strip_greek_diacritics(text):
 def read_file_safely(file_path):
     """Safely decode Greek texts with multiple fallbacks."""
     encodings = ['utf-8-sig', 'utf-8', 'iso-8859-7', 'windows-1253', 'latin-1']
-    last_error = None
     for enc in encodings:
         try:
             with open(file_path, 'r', encoding=enc) as f:
                 return f.read()
-        except UnicodeDecodeError as e:
-            last_error = e
+        except UnicodeDecodeError:
             continue
-    raise ValueError(f"Could not decode file {file_path}. Last error: {last_error}")
+    raise UnicodeDecodeError(f"Failed to decode {file_path}")
 
 
-def clean_text(text, filename):
-    """Parses XML cleanly, deletes TEI-Headers and removes conjectures from TXT."""
-    if filename.lower().endswith('.xml'):
-        text = re.sub(r'<\?xml.*?\?>', '', text).strip()
-        wrapped_text = f"<document>{text}</document>"
-        try:
-            soup = BeautifulSoup(wrapped_text, "xml")
-            for header in soup.find_all('teiHeader'):
-                header.decompose()
-            text = soup.get_text(separator=' ')
-        except Exception:
-            text = re.sub(r'<[^>]+>', ' ', text)
-    else:
-        text = text.replace('<', '').replace('>', '')
-
-    text = re.sub(r'\s+', ' ', text)
-    return text.strip()
-
-
-def build_bible_vectorizer(bible_path="greek_bible.txt"):
+def get_bible_quote_mask(sent, bible_ngrams):
     """
-    Builds a set of all 4-grams in the Septuagint/NT to exactly filter out citations.
+    Creates a boolean mask for the tokens in a spaCy sentence.
+    Returns a list of booleans (True = token is part of a Bible quote).
     """
-    if not os.path.exists(bible_path):
-        print(f"[Warning] Bible reference file '{bible_path}' not found. Quotes will not be filtered.")
-        return None
-    with open(bible_path, 'r', encoding='utf-8', errors='ignore') as f:
-        bible_lines = f.readlines()
+    mask = [False] * len(sent)
 
-    bible_sentences = []
-    for line in bible_lines:
-        cleaned = re.sub(r'\s+', ' ', line).strip()
-        if len(cleaned) > 10:
-            bible_sentences.append(cleaned)
+    # If no bible reference is loaded or sentence is too short, return all-False mask
+    if not bible_ngrams or len(sent) < 8:
+        return mask
 
-    if not bible_sentences:
-        return None
+    # Extract normalized strings directly from spaCy tokens to maintain strict index alignment
+    norm_tokens = [strip_greek_diacritics(t.text) for t in sent]
 
-    normalized_bible = [strip_greek_diacritics(s) for s in bible_sentences]
-    
-    bible_ngrams = set()
-    for sent in normalized_bible:
-        words = sent.split()
-        if len(words) >= 4:
-            for i in range(len(words) - 3):
-                bible_ngrams.add(tuple(words[i:i+4]))
+    temp_mask = [False] * len(sent)
+    for i in range(len(norm_tokens) - 3):
+        if tuple(norm_tokens[i:i + 4]) in bible_ngrams:
+            temp_mask[i] = True
+            temp_mask[i + 1] = True
+            temp_mask[i + 2] = True
+            temp_mask[i + 3] = True
 
-    return bible_ngrams
+    matching_words = sum(temp_mask)
+    # We still use the threshold of 8 words to prevent accidental common 4-gram overlaps
+    if matching_words >= 8:
+        print(f"  [Filtered] Masked {matching_words} biblical tokens in sentence.")
+        return temp_mask
+
+    return mask
 
 
-def extract_inference_features():
-    # --- Configuration ---
-    INFERENCE_FOLDER = "data/inference/pseudo_corpus"
-    BIBLE_PATH = "greek_bible.txt"
-    VOCAB_JSON = "top_features_vocabulary.json"
-    OUTPUT_CSV = "inference_features.csv"
+def main():
+    print("--- Starting Inference Feature Extraction ---")
 
-    print("--- Starting Feature Extraction (Inference Corpus) ---")
+    # 1. Load Vocabulary
+    vocab_path = "top_features_vocabulary.json"
+    if not os.path.exists(vocab_path):
+        print(f"Error: Vocabulary file '{vocab_path}' not found.")
+        return
 
-    if not os.path.exists(VOCAB_JSON):
-        raise FileNotFoundError(f"[Critical Error] Vocabulary '{VOCAB_JSON}' is missing. Run training extraction first.")
-
-    # Load dynamic vocabulary from the training phase
-    with open(VOCAB_JSON, 'r', encoding='utf-8') as f:
+    with open(vocab_path, "r", encoding="utf-8") as f:
         vocab = json.load(f)
-        top_words = vocab['words']
-        top_pos = vocab['pos']
-        top_morph = vocab['morph']
 
-    bible_ngrams = build_bible_vectorizer(BIBLE_PATH)
+    top_words = vocab["top_words"]
+    top_pos = vocab["top_pos"]
+    top_morph = vocab["top_morph"]
 
-    def is_bible_quote(sentence_text):
-        if not bible_ngrams or len(sentence_text) < 15:
-            return False
+    print(f"Loaded Vocabulary: {len(top_words)} words, {len(top_pos)} POS, {len(top_morph)} morphs.")
 
-        normalized_sentence = strip_greek_diacritics(sentence_text)
-        words = normalized_sentence.split()
-        if len(words) < 8:
-            return False
+    # 2. Load Bible Reference
+    bible_path = "greek_bible.txt"
+    bible_ngrams = set()
+    if os.path.exists(bible_path):
+        bible_text = read_file_safely(bible_path)
+        bible_words = [strip_greek_diacritics(w) for w in bible_text.split()]
+        # Generate 4-grams for the bible reference
+        bible_ngrams = {tuple(bible_words[i:i + 4]) for i in range(len(bible_words) - 3)}
+        print(f"Loaded Bible reference with {len(bible_ngrams)} 4-grams.")
+    else:
+        print(f"Warning: Bible reference '{bible_path}' not found. Bible filtering will be skipped.")
 
-        marked = [False] * len(words)
-        for i in range(len(words) - 3):
-            if tuple(words[i:i+4]) in bible_ngrams:
-                marked[i] = True
-                marked[i+1] = True
-                marked[i+2] = True
-                marked[i+3] = True
-
-        matching_words = sum(marked)
-        if matching_words >= 8:
-            print(f"  [Filtered] Bible quote removed (fuzzy match, {matching_words} words overlap).")
-            return True
-
-        return False
-
+    inference_dir = "data/inference/pseudo_corpus"
     sample_records = []
 
-    if not os.path.exists(INFERENCE_FOLDER):
-        raise FileNotFoundError(f"[Critical Error] Inference directory '{INFERENCE_FOLDER}' does not exist.")
+    print("\n--- Step 1: Processing Inference Corpus ---")
 
-    for filename in os.listdir(INFERENCE_FOLDER):
-        if filename.startswith('.'):
-            continue
+    if not os.path.exists(inference_dir):
+        print(f"Error: Inference directory '{inference_dir}' not found.")
+        return
 
-        file_path = os.path.join(INFERENCE_FOLDER, filename)
-        try:
+    for file in os.listdir(inference_dir):
+        if file.endswith(('.xml', '.txt')):
+            file_path = os.path.join(inference_dir, file)
             raw_text = read_file_safely(file_path)
-            raw_text = clean_text(raw_text, filename)
 
-            if len(raw_text) < 50:
-                print(f"[Skipped] '{filename}' contains insufficient text.")
+            # Clean HTML/XML tags if applicable
+            if file.endswith('.xml'):
+                soup = BeautifulSoup(raw_text, 'xml')
+                text = soup.get_text(separator=' ')
+            else:
+                text = raw_text
+
+            text = re.sub(r'\s+', ' ', text).strip()
+            if not text:
                 continue
 
-            doc = nlp(raw_text)
-        except Exception as e:
-            print(f"[Error] Skipping file '{filename}': {e}")
-            continue
+            print(f"Processing: {file}")
+            doc = nlp(text)
 
-        current_w = {}
-        current_m = {}
-        current_syntactic_trigrams = []
+            current_w = {}
+            current_p = {}
+            current_m = {}
+            current_length = 0
 
-        current_length = 0
-        chunk_index = 0
+            for sent in doc.sents:
+                quote_mask = get_bible_quote_mask(sent, bible_ngrams)
 
-        for sent in doc.sents:
-            if not is_bible_quote(sent.text):
-                current_length += len(sent)
+                for i, token in enumerate(sent):
+                    # Skip tokens that are flagged as part of a biblical quote
+                    if quote_mask[i]:
+                        continue
 
-                for token in sent:
+                    # Only increment rolling window length for actual authorial text!
+                    current_length += 1
+
                     # 1. Dynamic Extraction of all alphabet tokens
                     if token.is_alpha:
                         lemma = token.lemma_.lower()
@@ -184,54 +154,73 @@ def extract_inference_features():
                         current_m[morph_str] = current_m.get(morph_str, 0) + 1
 
                     # 3. Syntactic POS Trigrams
-                    children = sorted(list(token.children), key=lambda c: c.i)
-                    if len(children) >= 2:
-                        for i in range(len(children) - 1):
-                            trigram = (children[i].pos_, token.pos_, children[i + 1].pos_)
-                            current_syntactic_trigrams.append(trigram)
+                    # Ensure dependencies (children) do not cross into masked biblical quotes.
+                    valid_children = [
+                        c for c in token.children
+                        if c.i >= sent.start and c.i < sent.end and not quote_mask[c.i - sent.start]
+                    ]
+                    valid_children = sorted(valid_children, key=lambda c: c.i)
 
-            # --- ROLLING WINDOW ---
-            # WICHTIG: Das Rolling Window ist nun eingerückt und läuft *innerhalb* der for-Schleife nach jedem Satz.
-            if current_length >= 1000:
-                p_c = Counter(current_syntactic_trigrams)
-                row = {"Auteur": "Pseudo", "Titre": f"{filename}_{chunk_index}"}
+                    if len(valid_children) >= 2:
+                        for j in range(len(valid_children) - 1):
+                            trigram = f"{valid_children[j].pos_}_{token.pos_}_{valid_children[j + 1].pos_}"
+                            current_p[trigram] = current_p.get(trigram, 0) + 1
 
-                # Map dynamically to the established feature space
-                for w in top_words: row[f"LEMMA_{w}"] = current_w.get(w, 0)
-                pos_dict = {f"{k[0]}_{k[1]}_{k[2]}": v for k, v in p_c.items()}
-                for p in top_pos: row[f"POS_{p}"] = pos_dict.get(p, 0)
-                for m in top_morph: row[f"MORPH_{m}"] = current_m.get(m, 0)
+                # --- ROLLING WINDOW ---
+                if current_length >= 1000:
+                    sample_records.append({
+                        "author": "Pseudo-Chrysostomus",
+                        "title": file.replace('.xml', '').replace('.txt', ''),
+                        "w": current_w,
+                        "p": current_p,
+                        "m": current_m
+                    })
+                    current_w = {}
+                    current_p = {}
+                    current_m = {}
+                    current_length = 0
 
-                sample_records.append(row)
+            # Process remaining text (Tail-Chunk) if it meets the minimum threshold
+            if current_length >= 250:
+                sample_records.append({
+                    "author": "Pseudo-Chrysostomus",
+                    "title": file.replace('.xml', '').replace('.txt', ''),
+                    "w": current_w,
+                    "p": current_p,
+                    "m": current_m
+                })
 
-                # Reset memory for the next chunk
-                current_w, current_m, current_syntactic_trigrams = {}, {}, []
-                current_length = 0
-                chunk_index += 1
+    print("\n--- Step 2: Formatting Final Inference Matrix (Relative Frequencies) ---")
+    final_rows = []
 
-        # Process the remaining tail chunk (nachdem die Predigt fertig gelesen wurde)
-        if current_length >= 250:
-            if chunk_index == 0 and current_length < 1000:
-                print(
-                    f"[Warning] Text '{filename}' is very short ({current_length} tokens). Results may be statistically unstable.")
+    for r in sample_records:
+        row = {"Auteur": r["author"], "Titre": r["title"]}
 
-            p_c = Counter(current_syntactic_trigrams)
-            row = {"Auteur": "Pseudo", "Titre": f"{filename}_{chunk_index}"}
+        # Calculate total valid tokens/features in this specific chunk to normalize frequencies
+        total_tokens = sum(r["w"].values()) if sum(r["w"].values()) > 0 else 1
+        total_pos = sum(r["p"].values()) if sum(r["p"].values()) > 0 else 1
+        total_morph = sum(r["m"].values()) if sum(r["m"].values()) > 0 else 1
 
-            for w in top_words: row[f"LEMMA_{w}"] = current_w.get(w, 0)
-            pos_dict = {f"{k[0]}_{k[1]}_{k[2]}": v for k, v in p_c.items()}
-            for p in top_pos: row[f"POS_{p}"] = pos_dict.get(p, 0)
-            for m in top_morph: row[f"MORPH_{m}"] = current_m.get(m, 0)
+        for w in top_words:
+            # Multiply by 1000 to get normalized rates per 1000 tokens
+            row[f"LEMMA_{w}"] = (r["w"].get(w, 0) / total_tokens) * 1000
 
-            sample_records.append(row)
+        for p in top_pos:
+            row[f"POS_{p}"] = (r["p"].get(p, 0) / total_pos) * 1000
 
-    print("\n--- Step 2: Formatting Final Inference Matrix ---")
-    df_infer = pd.DataFrame(sample_records).fillna(0)
-    df_infer.to_csv(OUTPUT_CSV, index=False)
+        for m in top_morph:
+            row[f"MORPH_{m}"] = (r["m"].get(m, 0) / total_morph) * 1000
 
-    print(f"[Success] Inference features formatted and saved to '{OUTPUT_CSV}'")
-    print(f"[Info] Shape of the inference matrix: {df_infer.shape}")
+        final_rows.append(row)
+
+    df = pd.DataFrame(final_rows)
+    # Fill remaining NaNs with 0 to ensure matrix integrity
+    df = df.fillna(0)
+
+    output_path = "inference_features.csv"
+    df.to_csv(output_path, index=False)
+    print(f"\n[Success] Inference features saved to {output_path}. Shape: {df.shape}")
 
 
 if __name__ == "__main__":
-    extract_inference_features()
+    main()

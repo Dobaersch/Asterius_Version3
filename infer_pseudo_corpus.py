@@ -8,6 +8,7 @@ import joblib
 import gc
 import scipy.spatial.distance as dist
 import shap
+import json
 import matplotlib
 
 matplotlib.use('Agg')  # Headless mode to prevent memory/tkinter crashes
@@ -35,20 +36,20 @@ def compute_asterius_profile(model, preprocessor, train_csv_path):
     model.eval()
     with torch.no_grad():
         X_ast_tensor = torch.FloatTensor(X_ast_scaled).to(device)
-        ast_embeddings = model(X_ast_tensor)
-        ast_embeddings = F.normalize(ast_embeddings, p=2, dim=1).cpu().numpy()
+        ast_embeddings = model(X_ast_tensor).cpu().numpy()
 
     centroid = np.mean(ast_embeddings, axis=0)
 
-    # --- DYNAMIC THRESHOLD FIX ---
-    # Calculates the exact boundary of the Asterius cluster using Standard Deviation
-    ast_distances = [dist.euclidean(emb, centroid) for emb in ast_embeddings]
-    mean_ast_dist = np.mean(ast_distances)
-    std_ast_dist = np.std(ast_distances)
-
-    # The boundary is exactly the Mean + 2 Standard Deviations (captures ~95% of Asterius' style)
-    # Using 3 Std was too generous and allowed too many false positives.
-    dynamic_threshold = mean_ast_dist + (2 * std_ast_dist)
+    # Inside infer_pseudo_corpus.py -> Step 3: Load configurations
+    metadata_path = "model_metadata.json"
+    if os.path.exists(metadata_path):
+        with open(metadata_path, "r", encoding="utf-8") as f:
+            metadata = json.load(f)
+        dynamic_threshold = metadata["optimal_distance_threshold"]
+        print(f"Loaded Empirically Tuned Threshold from training pipeline: {dynamic_threshold:.4f}")
+    else:
+        dynamic_threshold = 2.27  # Hard fallback if file is missing
+        print(f"Warning: Metadata not found. Using static fallback threshold: {dynamic_threshold}")
 
     return centroid, dynamic_threshold, feature_cols, X_ast_scaled
 
@@ -79,7 +80,10 @@ def infer_pseudo_corpus():
 
     exclude_cols = ['Auteur', 'Titre', 'Text']
     feature_cols = [col for col in df_infer.columns if col not in exclude_cols]
-    input_dim = len(feature_cols)
+    
+    # Dynamically determine input dimensions after preprocessor (PCA support)
+    test_scaled = preprocessor.transform(df_infer[feature_cols].iloc[0:1].astype(float))
+    input_dim = test_scaled.shape[1]
 
     model = SiameseTabularNet(input_size=input_dim).to(device)
     model.load_state_dict(torch.load(MODEL_PATH, map_location=device))
@@ -106,8 +110,7 @@ def infer_pseudo_corpus():
 
     with torch.no_grad():
         X_pseudo_tensor = torch.FloatTensor(X_pseudo_scaled).to(device)
-        pseudo_embeddings = model(X_pseudo_tensor)
-        pseudo_embeddings = F.normalize(pseudo_embeddings, p=2, dim=1).cpu().numpy()
+        pseudo_embeddings = model(X_pseudo_tensor).cpu().numpy()
 
     for i, emb in enumerate(pseudo_embeddings):
         distance = dist.euclidean(emb, centroid)
@@ -137,11 +140,13 @@ def infer_pseudo_corpus():
             shap_values = explainer.shap_values(current_instance_tensor, check_additivity=False)
             plot_shap_values = shap_values[0] if isinstance(shap_values, list) else shap_values
 
+            actual_feature_names = np.array(train_features) if input_dim == len(train_features) else np.array([f"PC{i+1}" for i in range(input_dim)])
+            
             plt.figure(figsize=(10, 6))
             shap.summary_plot(
                 plot_shap_values,
                 X_pseudo_scaled[i:i + 1],
-                feature_names=np.array(train_features),
+                feature_names=actual_feature_names,
                 plot_type="bar",
                 max_display=20,
                 show=False

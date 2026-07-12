@@ -1,13 +1,11 @@
-
 import os
 import re
 import json
 import pandas as pd
-from collections import Counter
+import numpy as np
 import spacy
 from bs4 import BeautifulSoup
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.feature_selection import f_classif
 import unicodedata
 import warnings
 
@@ -33,239 +31,228 @@ def strip_greek_diacritics(text):
 def read_file_safely(file_path):
     """Safely decode Greek texts with multiple fallbacks."""
     encodings = ['utf-8-sig', 'utf-8', 'iso-8859-7', 'windows-1253', 'latin-1']
-    last_error = None
     for enc in encodings:
         try:
             with open(file_path, 'r', encoding=enc) as f:
                 return f.read()
-        except UnicodeDecodeError as e:
-            last_error = e
+        except UnicodeDecodeError:
             continue
-    raise ValueError(f"Could not decode file {file_path}. Last error: {last_error}")
+    raise UnicodeDecodeError(f"Failed to decode {file_path}")
 
 
-def clean_text(text, filename):
-    """Parses XML cleanly, deletes TEI-Headers and removes conjectures from TXT."""
-    if filename.lower().endswith('.xml'):
-        text = re.sub(r'<\?xml.*?\?>', '', text).strip()
-        wrapped_text = f"<document>{text}</document>"
-        try:
-            soup = BeautifulSoup(wrapped_text, "xml")
-            for header in soup.find_all('teiHeader'):
-                header.decompose()
-            text = soup.get_text(separator=' ')
-        except Exception:
-            text = re.sub(r'<[^>]+>', ' ', text)
-    else:
-        text = text.replace('<', '').replace('>', '')
-
-    text = re.sub(r'\s+', ' ', text)
-    return text.strip()
-
-
-def build_bible_vectorizer(bible_path="greek_bible.txt"):
+def get_bible_quote_mask(sent, bible_ngrams):
     """
-    Builds a set of all 4-grams in the Septuagint/NT to exactly filter out citations.
+    Creates a boolean mask for the tokens in a spaCy sentence.
+    Returns a list of booleans (True = token is part of a Bible quote).
     """
-    if not os.path.exists(bible_path):
-        print(f"[Warning] Bible reference file '{bible_path}' not found. Quotes will not be filtered.")
-        return None
-    with open(bible_path, 'r', encoding='utf-8', errors='ignore') as f:
-        bible_lines = f.readlines()
+    mask = [False] * len(sent)
 
-    bible_sentences = []
-    for line in bible_lines:
-        cleaned = re.sub(r'\s+', ' ', line).strip()
-        if len(cleaned) > 10:
-            bible_sentences.append(cleaned)
+    if not bible_ngrams or len(sent) < 8:
+        return mask
 
-    if not bible_sentences:
-        return None
+    norm_tokens = [strip_greek_diacritics(t.text) for t in sent]
+    temp_mask = [False] * len(sent)
 
-    normalized_bible = [strip_greek_diacritics(s) for s in bible_sentences]
-    
+    for i in range(len(norm_tokens) - 3):
+        if tuple(norm_tokens[i:i + 4]) in bible_ngrams:
+            temp_mask[i] = True
+            temp_mask[i + 1] = True
+            temp_mask[i + 2] = True
+            temp_mask[i + 3] = True
+
+    matching_words = sum(temp_mask)
+    if matching_words >= 8:
+        print(f"  [Filtered] Masked {matching_words} biblical tokens in sentence.")
+        return temp_mask
+
+    return mask
+
+
+def main():
+    print("--- Starting Train Feature Extraction ---")
+
+    # 1. Load Bible Reference
+    bible_path = "greek_bible.txt"
     bible_ngrams = set()
-    for sent in normalized_bible:
-        words = sent.split()
-        if len(words) >= 4:
-            for i in range(len(words) - 3):
-                bible_ngrams.add(tuple(words[i:i+4]))
+    if os.path.exists(bible_path):
+        bible_text = read_file_safely(bible_path)
+        bible_words = [strip_greek_diacritics(w) for w in bible_text.split()]
+        bible_ngrams = {tuple(bible_words[i:i + 4]) for i in range(len(bible_words) - 3)}
+        print(f"Loaded Bible reference with {len(bible_ngrams)} 4-grams.")
+    else:
+        print(f"Warning: Bible reference '{bible_path}' not found. Bible filtering will be skipped.")
 
-    return bible_ngrams
+    # Dynamically find all author directories in data/train
+    train_base_dir = "data/train"
+    if not os.path.exists(train_base_dir):
+        print(f"Error: Base training directory '{train_base_dir}' not found.")
+        return
 
-
-def extract_train_features():
-    # --- Configuration ---
-    TRAIN_BASE_DIR = "data/train"
-    BIBLE_PATH = "greek_bible.txt"
-    OUTPUT_CSV = "train_features.csv"
-    VOCAB_JSON = "top_features_vocabulary.json"
-
-    print("--- Starting Feature Extraction (Training Corpus) ---")
-
-    bible_ngrams = build_bible_vectorizer(BIBLE_PATH)
-
-    def is_bible_quote(sentence_text):
-        if not bible_ngrams or len(sentence_text) < 15:
-            return False
-
-        normalized_sentence = strip_greek_diacritics(sentence_text)
-        words = normalized_sentence.split()
-        if len(words) < 8:
-            return False
-
-        marked = [False] * len(words)
-        for i in range(len(words) - 3):
-            if tuple(words[i:i+4]) in bible_ngrams:
-                marked[i] = True
-                marked[i+1] = True
-                marked[i+2] = True
-                marked[i+3] = True
-
-        matching_words = sum(marked)
-        if matching_words >= 8:
-            print(f"  [Filtered] Bible quote removed (fuzzy match, {matching_words} words overlap).")
-            return True
-
-        return False
-
-    # Dictionaries to capture corpus-wide frequencies for our dynamic MFW logic
-    global_counts = {
-        'words': Counter(),
-        'pos': Counter(),
-        'morph': Counter()
-    }
+    train_dirs = [os.path.join(train_base_dir, d) for d in os.listdir(train_base_dir)
+                  if os.path.isdir(os.path.join(train_base_dir, d))]
 
     sample_records = []
+    global_counts = {'words': {}, 'pos': {}, 'morph': {}}
 
-    if not os.path.exists(TRAIN_BASE_DIR):
-        raise FileNotFoundError(f"Training directory '{TRAIN_BASE_DIR}' does not exist.")
+    print("\n--- Step 1: Processing Training Corpus ---")
 
-    authors = [d for d in os.listdir(TRAIN_BASE_DIR) if os.path.isdir(os.path.join(TRAIN_BASE_DIR, d))]
+    for d in train_dirs:
+        author_label = os.path.basename(d)
 
-    for author in authors:
-        author_dir = os.path.join(TRAIN_BASE_DIR, author)
-        print(f"\n[Processing] Author: {author.capitalize()}")
-
-        for filename in os.listdir(author_dir):
-            if filename.startswith('.'):
-                continue
-
-            file_path = os.path.join(author_dir, filename)
-            try:
+        for file in os.listdir(d):
+            if file.endswith(('.xml', '.txt')):
+                file_path = os.path.join(d, file)
                 raw_text = read_file_safely(file_path)
-                raw_text = clean_text(raw_text, filename)
 
-                if len(raw_text) < 50:
+                if file.endswith('.xml'):
+                    soup = BeautifulSoup(raw_text, 'xml')
+                    text = soup.get_text(separator=' ')
+                else:
+                    text = raw_text
+
+                text = re.sub(r'\s+', ' ', text).strip()
+                if not text:
                     continue
 
-                doc = nlp(raw_text)
-            except Exception as e:
-                print(f"  [Error] Skipping file '{filename}': {e}")
-                continue
+                print(f"Processing: [{author_label}] {file}")
+                doc = nlp(text)
 
-            current_w = {}
-            current_m = {}
-            current_syntactic_trigrams = []
+                current_w = {}
+                current_p = {}
+                current_m = {}
+                current_length = 0
 
-            current_length = 0
-            chunk_index = 0
+                for sent in doc.sents:
+                    quote_mask = get_bible_quote_mask(sent, bible_ngrams)
 
-            for sent in doc.sents:
-                if not is_bible_quote(sent.text):
-                    current_length += len(sent)
+                    for i, token in enumerate(sent):
+                        if quote_mask[i]:
+                            continue
 
-                    for token in sent:
-                        # 1. Dynamic Extraction of all alphabet tokens
+                        current_length += 1
+
+                        # 1. Lemmas
                         if token.is_alpha:
                             lemma = token.lemma_.lower()
                             current_w[lemma] = current_w.get(lemma, 0) + 1
-                            global_counts['words'][lemma] += 1
+                            global_counts['words'][lemma] = global_counts['words'].get(lemma, 0) + 1
 
-                        # 2. Morphological Features
+                        # 2. Morphology
                         if token.morph:
                             morph_str = str(token.morph)
                             current_m[morph_str] = current_m.get(morph_str, 0) + 1
-                            global_counts['morph'][morph_str] += 1
+                            global_counts['morph'][morph_str] = global_counts['morph'].get(morph_str, 0) + 1
 
-                        # 3. Syntactic POS Trigrams
-                        children = sorted(list(token.children), key=lambda c: c.i)
-                        if len(children) >= 2:
-                            for i in range(len(children) - 1):
-                                trigram = (children[i].pos_, token.pos_, children[i + 1].pos_)
-                                current_syntactic_trigrams.append(trigram)
-                                global_counts['pos'][f"{trigram[0]}_{trigram[1]}_{trigram[2]}"] += 1
+                        # 3. POS Trigrams
+                        valid_children = [
+                            c for c in token.children
+                            if c.i >= sent.start and c.i < sent.end and not quote_mask[c.i - sent.start]
+                        ]
+                        valid_children = sorted(valid_children, key=lambda c: c.i)
+
+                        if len(valid_children) >= 2:
+                            for j in range(len(valid_children) - 1):
+                                trigram = f"{valid_children[j].pos_}_{token.pos_}_{valid_children[j + 1].pos_}"
+                                current_p[trigram] = current_p.get(trigram, 0) + 1
+                                global_counts['pos'][trigram] = global_counts['pos'].get(trigram, 0) + 1
 
                 # --- ROLLING WINDOW ---
-                # Dies ist nun korrekt eingerückt und splittet das Training exakt in 1000er Blöcke
                 if current_length >= 1000:
                     sample_records.append({
-                        "author": author.capitalize(),
-                        "title": f"{filename}_{chunk_index}",
-                        "w": dict(current_w),
-                        "p": dict(Counter(current_syntactic_trigrams)),
-                        "m": dict(current_m)
+                        "author": author_label,
+                        "title": file.replace('.xml', '').replace('.txt', ''),
+                        "w": current_w,
+                        "p": current_p,
+                        "m": current_m
                     })
-
-                    # Reset memory for the next chunk
-                    current_w, current_m, current_syntactic_trigrams = {}, {}, []
+                    current_w = {}
+                    current_p = {}
+                    current_m = {}
                     current_length = 0
-                    chunk_index += 1
 
-            # Process the remaining tail chunk
-            # Belässt Reststücke, die mindestens 250 Wörter haben, um keine Daten zu verschenken
+            # Tail-Chunk Export
             if current_length >= 250:
                 sample_records.append({
-                    "author": author.capitalize(),
-                    "title": f"{filename}_{chunk_index}",
-                    "w": dict(current_w),
-                    "p": dict(Counter(current_syntactic_trigrams)),
-                    "m": dict(current_m)
+                    "author": author_label,
+                    "title": file.replace('.xml', '').replace('.txt', ''),
+                    "w": current_w,
+                    "p": current_p,
+                    "m": current_m
                 })
 
-    print("\n--- Step 2: Global Vocabulary & MFW Calculation ---")
+    print("\n--- Step 2: Selecting Top Features via ANOVA F-Value ---")
 
-    # 1. Retrieve the Top 150 Most Frequent Words dynamically
-    MFW_COUNT = 150
-    top_words = [w for w, _ in global_counts['words'].most_common(MFW_COUNT)]
+    # 1. Sort global counts by absolute frequency
+    words_sorted = sorted(global_counts['words'].items(), key=lambda x: x[1], reverse=True)
+    top_words = [k for k, v in words_sorted[:200]]
 
-    # 2. Retrieve Top 100 Syntactic POS Trigrams
-    top_pos = [p for p, _ in global_counts['pos'].most_common(100)]
+    morph_sorted = sorted(global_counts['morph'].items(), key=lambda x: x[1], reverse=True)
+    top_morph = [k for k, v in morph_sorted[:100]]
 
-    # 3. Retrieve Top 100 Morphological features
-    top_morph = [m for m, _ in global_counts['morph'].most_common(100)]
+    # 2. Advanced Feature Selection for POS Trigrams (Filtering generic syntax)
+    pos_sorted = sorted(global_counts['pos'].items(), key=lambda x: x[1], reverse=True)
+    candidate_pos = [k for k, v in pos_sorted[:300]]
 
-    # Export the dynamically calculated vocabulary for the inference step
-    with open(VOCAB_JSON, 'w', encoding='utf-8') as f:
-        json.dump({'words': top_words, 'pos': top_pos, 'morph': top_morph}, f)
+    print(f"  [Info] Running ANOVA F-Test on {len(candidate_pos)} frequent POS trigrams to filter generic syntax...")
 
-    print(f"[Success] Dynamic vocabulary exported to '{VOCAB_JSON}'")
+    temp_pos_matrix = []
+    labels = []
+    for r in sample_records:
+        labels.append(r["author"])
+        total_pos_in_chunk = sum(r["p"].values()) if sum(r["p"].values()) > 0 else 1
 
-    print("\n--- Step 3: Formatting Final Matrix ---")
+        row_vals = []
+        for cp in candidate_pos:
+            val = (r["p"].get(cp, 0) / total_pos_in_chunk) * 1000
+            row_vals.append(val)
+        temp_pos_matrix.append(row_vals)
+
+    X_pos_temp = np.array(temp_pos_matrix)
+    y_labels = np.array(labels)
+
+    f_values, p_values = f_classif(X_pos_temp, y_labels)
+
+    scored_pos = list(zip(candidate_pos, f_values))
+    scored_pos = [(p, score) for p, score in scored_pos if not np.isnan(score)]
+    scored_pos.sort(key=lambda x: x[1], reverse=True)
+
+    top_pos = [p for p, score in scored_pos[:100]]
+    print(f"  [Result] Selected {len(top_pos)} highly author-specific POS trigrams.")
+
+    # 3. Save the final optimized vocabulary
+    vocab_path = "top_features_vocabulary.json"
+    with open(vocab_path, 'w', encoding='utf-8') as f:
+        json.dump({'top_words': top_words, 'top_pos': top_pos, 'top_morph': top_morph}, f)
+    print(f"Saved vocabulary ({len(top_words)} words, {len(top_pos)} POS, {len(top_morph)} morphs) to {vocab_path}")
+
+    print("\n--- Step 3: Formatting Final Training Matrix (Relative Frequencies) ---")
     final_rows = []
 
     for r in sample_records:
         row = {"Auteur": r["author"], "Titre": r["title"]}
 
-        for w in top_words:
-            row[f"LEMMA_{w}"] = r["w"].get(w, 0)
+        total_tokens = sum(r["w"].values()) if sum(r["w"].values()) > 0 else 1
+        total_pos = sum(r["p"].values()) if sum(r["p"].values()) > 0 else 1
+        total_morph = sum(r["m"].values()) if sum(r["m"].values()) > 0 else 1
 
-        p_c = r["p"]
-        pos_dict = {f"{k[0]}_{k[1]}_{k[2]}": v for k, v in p_c.items()}
+        for w in top_words:
+            row[f"LEMMA_{w}"] = (r["w"].get(w, 0) / total_tokens) * 1000
+
         for p in top_pos:
-            row[f"POS_{p}"] = pos_dict.get(p, 0)
+            row[f"POS_{p}"] = (r["p"].get(p, 0) / total_pos) * 1000
 
         for m in top_morph:
-            row[f"MORPH_{m}"] = r["m"].get(m, 0)
+            row[f"MORPH_{m}"] = (r["m"].get(m, 0) / total_morph) * 1000
 
         final_rows.append(row)
 
-    df_train = pd.DataFrame(final_rows).fillna(0)
-    df_train.to_csv(OUTPUT_CSV, index=False)
+    df = pd.DataFrame(final_rows)
+    df = df.fillna(0)
 
-    print(f"[Success] Training features formatted and saved to '{OUTPUT_CSV}'")
-    print(f"[Info] Shape of the training matrix: {df_train.shape}")
+    output_path = "train_features.csv"
+    df.to_csv(output_path, index=False)
+    print(f"\n[Success] Training features saved to {output_path}. Shape: {df.shape}")
 
 
 if __name__ == "__main__":
-    extract_train_features()
+    main()

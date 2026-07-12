@@ -1,289 +1,286 @@
 Document,Total_Chunks,Asterius_Chunks,Asterius_Match_Percentage,Mean_Distance_to_Asterius,Final_Classification
-CPG4571_InPraecursoremDomini.xml,1,1,100.0,0.1086,Core-Asterius
-CPG4510_InSanctumRomanumMartyremHomilia2.xml,2,2,100.0,0.1185,Core-Asterius
-CPG4690_InSanctumStephanumHomilia1.xml,1,1,100.0,0.1332,Core-Asterius
-PSBasilius_2040033_InBarlaamMartyrem.xml,1,1,100.0,0.1737,Core-Asterius
-CPG2861_InBarlaamMartyrem.xml,1,1,100.0,0.1737,Core-Asterius
-CPG4996_1_InResurrectionemDomini.xml,1,1,100.0,0.1964,Core-Asterius
-CPG4749_InSynaximIncorporalium.xml,2,2,100.0,0.2205,Core-Asterius
-CPG5064_InNataleDomini.txt,1,1,100.0,0.2234,Core-Asterius
-CPG4573_InDuodecimApostolos.txt,1,1,100.0,0.2239,Core-Asterius
-CPG5818_InSanctumAndreamApostolum.txt,1,1,100.0,0.2393,Core-Asterius
-tlg2022_043.xml,1,1,100.0,0.243,Core-Asterius
-CPG4632_DeSpe.xml,1,1,100.0,0.2466,Core-Asterius
-CPG4858_InVerEtInResurrectionem.txt,1,1,100.0,0.2498,Core-Asterius
-CPG5004_InSanctamTheophaniam.txt,1,1,100.0,0.2536,Core-Asterius
-CPG4706_AdEosQuiMagniAestimantOpes.xml,2,1,50.0,0.2718,Core-Asterius
-CPG5831_InSanctumPascha.txt,1,1,100.0,0.2743,Core-Asterius
-CPG4699_QuodMariSimilisSitHaecVita.txt,1,1,100.0,0.2751,Core-Asterius
-CPG4657_InNataleDNIC.xml,2,1,50.0,0.2811,Core-Asterius
-CPG4888_InAdamEtDePaenitentia.txt,2,1,50.0,0.2814,Core-Asterius
-CPG4535_InAscensionemSermo5.xml,1,1,100.0,0.2843,Core-Asterius
-CPG4740_InResurrectionemDomini.xml,1,1,100.0,0.2852,Core-Asterius
-CPG4608_InPaschaSermo3.xml,1,1,100.0,0.2884,Core-Asterius
-CPG4737_InChristiAscensionem.xml,1,1,100.0,0.2964,Core-Asterius
-AsteriusIgnotus_HomiliainferiamVinfraOctauamPaschae.txt,1,1,100.0,0.2969,Core-Asterius
-CPG4553_InPsalmum139.xml,2,1,50.0,0.3038,Core-Asterius
-CPG4537_InPentecostenSermo2.xml,1,1,100.0,0.3131,Core-Asterius
-CPG4519_InAnnuntiationemBeataeVirginis.xml,2,1,50.0,0.3208,Grey Zone (Mixed/Edited)
-AsteriusIgnotus_InPsalmum1.txt,1,0,0.0,0.3259,Grey Zone (Mixed/Edited)
-CPG4509_InSanctamPelagiam.xml,1,0,0.0,0.3278,Grey Zone (Mixed/Edited)
-CPG4591_InPublicanumEtPharisaeum.xml,2,1,50.0,0.3367,Grey Zone (Mixed/Edited)
-CPG4631_DePaenitentia.xml,1,0,0.0,0.3447,Grey Zone (Mixed/Edited)
-CPG4572_InPetrumEtPaulum.xml,2,1,50.0,0.3488,Grey Zone (Mixed/Edited)
-CPG4660_InIlludExiitQuiSeminat.xml,2,1,50.0,0.3542,Grey Zone (Mixed/Edited)
-CPG4633_DeCaritate.xml,1,0,0.0,0.359,Grey Zone (Mixed/Edited)
-CPG4650_InChristiNatalemDiem.xml,1,0,0.0,0.3731,Grey Zone (Mixed/Edited)
-CPG4641_InMeretricemEtInPharisaeum.xml,1,0,0.0,0.3751,Grey Zone (Mixed/Edited)
-CPG4700_InIlludSimileEstRegnumCaelorumGranoSinapis.xml,2,0,0.0,0.3793,Grey Zone (Mixed/Edited)
-CPG4732_InMagnamFeriamQuintam.txt,1,0,0.0,0.3808,Grey Zone (Mixed/Edited)
-CPG4987_OratioInIohannemTheologum.txt,2,0,0.0,0.3901,Grey Zone (Mixed/Edited)
-AsteriusIgnotus_InPsalmum8homilia1.txt,1,0,0.0,0.3903,Grey Zone (Mixed/Edited)
-CPG4733_DeMeretrice.xml,1,0,0.0,0.3905,Grey Zone (Mixed/Edited)
-CPG4652_InMediamPentecosten.xml,1,0,0.0,0.3968,Grey Zone (Mixed/Edited)
-CPG3177_InLuciferamSanctamDominiResurrectionem.xml,1,0,0.0,0.3982,Grey Zone (Mixed/Edited)
-CPG4646_InTransfigurationem.xml,1,0,0.0,0.3984,Grey Zone (Mixed/Edited)
-CPG4534_InAscensionemDominiSermo4.xml,2,0,0.0,0.3991,Grey Zone (Mixed/Edited)
-CPG4673_InResurrectionemDomini.xml,1,0,0.0,0.4071,Grey Zone (Mixed/Edited)
-CPG4593_DeIohanneApostolo.xml,3,2,66.67,0.4142,Grey Zone (Mixed/Edited)
-CPG4588_InParabolamDeFicu.xml,3,1,33.33,0.4182,Grey Zone (Mixed/Edited)
-CPG4515_DeSanctaTheclaMartyre.xml,1,0,0.0,0.4454,Grey Zone (Mixed/Edited)
-PsGregorNyss_2017036_DeParadiso.xml,2,1,50.0,0.4519,Grey Zone (Mixed/Edited)
-CPG4442_InPoenitentiamNinivitarum.xml,3,1,33.33,0.4547,Grey Zone (Mixed/Edited)
-CPG4649_InPharisaeumEtInMeretricem.xml,5,0,0.0,0.4591,Grey Zone (Mixed/Edited)
-AsteriusIgnotus_InPsalmum8homilia4.txt,1,0,0.0,0.4645,Grey Zone (Mixed/Edited)
-CPG4707_DePrecatione.xml,1,0,0.0,0.4653,Grey Zone (Mixed/Edited)
-CPG4747_InPassionemSalvatoris.xml,1,0,0.0,0.4692,Grey Zone (Mixed/Edited)
-CPG4566_DeIoseph.xml,2,0,0.0,0.4707,Foreign Author
-CPG5807_InTransfigurationemDomini.txt,2,1,50.0,0.4737,Foreign Author
-CPG4663_InFiliumViduae.xml,2,1,50.0,0.474,Foreign Author
-CPG4637_InRachelem.xml,1,0,0.0,0.4843,Foreign Author
-CPG4600_InSanctumStephanum.xml,1,0,0.0,0.485,Foreign Author
-CPG4677_InAnnuntiationemDeiparae.xml,3,1,33.33,0.487,Foreign Author
-CPG4601_InMediamHebdomadamIeiuniorum.xml,1,0,0.0,0.488,Foreign Author
-CPG4703_DeCognitioneDei.xml,1,0,0.0,0.4885,Foreign Author
-CPG5806_InSanctaTheophania.txt,1,0,0.0,0.4962,Foreign Author
-CPG2930_HomiliaInAquas.xml,1,0,0.0,0.512,Foreign Author
-AsteriusIgnotus_InPsalmum5homilia6.txt,2,0,0.0,0.5142,Foreign Author
-CPG4531_InAscensionemSermo1.xml,1,0,0.0,0.515,Foreign Author
-CPG4580_InDecemVirgines.xml,2,1,50.0,0.5173,Foreign Author
-CPG3187_InStephanumProtomartyremII.xml,3,1,33.33,0.518,Foreign Author
-CPG3767_InRamosPalmarum.txt,3,1,33.33,0.5188,Foreign Author
-CPG4511_DeProditioneIudae.xml,1,0,0.0,0.5221,Foreign Author
-CPG4758_InChristiNatalem.xml,1,0,0.0,0.5262,Foreign Author
-CPG4643_InRamosPalmarum.xml,3,1,33.33,0.5551,Foreign Author
-CPG4533_InAscensionemSermo3.xml,1,0,0.0,0.5609,Foreign Author
-PSBasilius_2040013_DeSpiritu.xml,1,0,0.0,0.5718,Foreign Author
-CPG5031_DeAnnuntiatione.txt,2,0,0.0,0.5726,Foreign Author
-PsBasilius_2040053_InPsalmum28.txt,2,0,0.0,0.5739,Foreign Author
-CPG4769_InIlludNoliAemulariInMalignanibus.txt,3,0,0.0,0.577,Foreign Author
-CPG4691_InSanctumStephanumHomilia2.xml,1,0,0.0,0.5784,Foreign Author
-CPG4599_InExaltationemVenerandaeCrucis.xml,2,1,50.0,0.5812,Foreign Author
-CPG4575_InSanctumStephanumProtomartyrem.xml,4,1,25.0,0.584,Foreign Author
-CPG4671_InPrincipiumIeiuniorum.xml,2,0,0.0,0.5894,Foreign Author
-CPG4586_InPrincipiumIndictionisInMartyres.xml,2,0,0.0,0.59,Foreign Author
-CPG4524_InSanctaEtMagnaParasceue.xml,3,1,33.33,0.595,Foreign Author
-CPG4625_ContraHaereticos.xml,2,0,0.0,0.5956,Foreign Author
-CPG4662_DeIeiunio.txt,2,1,50.0,0.5986,Foreign Author
-CPG4548_InPsalmum92.txt,3,1,33.33,0.6015,Foreign Author
-CPG4661_InDrachmam.xml,2,0,0.0,0.6023,Foreign Author
-AsteriusIgnotus_InPsalmum18.txt,3,1,33.33,0.6053,Foreign Author
-CPG4850_LaudatioPauliApostoli.txt,2,1,50.0,0.6068,Foreign Author
-AsteriusIgnotus_InPsalmum11homilia1.txt,2,0,0.0,0.6068,Foreign Author
-CPG7385_InSanctaTheophaniaHomilia4.txt,3,0,0.0,0.612,Foreign Author
-CPG4681_InLazarumHomilia2.xml,2,0,0.0,0.6126,Foreign Author
-PsBasilius_2040056_HomiliaInPsalmum132.txt,1,0,0.0,0.6216,Foreign Author
-CPG4567_DeSusanna.xml,3,1,33.33,0.6221,Foreign Author
-PsGregorNyss_2017051_InAnnuntiationem.xml,2,0,0.0,0.624,Foreign Author
-CPG4757_InIlludCredidiPropterQuodLocutusSum.xml,2,0,0.0,0.6303,Foreign Author
-CPG4736_InNativitatemIohannisBaptistae.xml,2,0,0.0,0.6345,Foreign Author
-CPG4565_InEliamProphetam.xml,2,0,0.0,0.6346,Foreign Author
-CPG4570_InDecollationemSanctiIohannis.xml,3,0,0.0,0.6378,Foreign Author
-CPG4547_InPsalmum75.xml,3,0,0.0,0.6395,Foreign Author
-CPG4726_InNataleDominiEtInSantamMariamGenetricem.xml,2,0,0.0,0.6453,Foreign Author
-CPG4918_InCaecumNatum.txt,2,0,0.0,0.6592,Foreign Author
-CPG4727_VisioDanielis.xml,2,1,50.0,0.6633,Foreign Author
-CPG4552_2_InPsalmum118Homilia2.xml,1,0,0.0,0.6649,Foreign Author
-CPG4630_DeNonIudicandoProximo.xml,2,0,0.0,0.6656,Foreign Author
-CPG4628_DeAnnuntiationemSanctissimaeDeiparae.xml,2,0,0.0,0.6663,Foreign Author
-CPG4504_ChristiDiscipulumBenignumEsseDebere.xml,2,0,0.0,0.6718,Foreign Author
-AsteriusIgnotus_InPsalmum7.txt,4,1,25.0,0.6736,Foreign Author
-CPG4729_InRecensBaptizatos.txt,1,0,0.0,0.6766,Foreign Author
-CPG2270_InNatalemChristiDiem.txt,3,0,0.0,0.6808,Foreign Author
-CPG4584_DeCirco.xml,2,0,0.0,0.6813,Foreign Author
-CPG4696_SermoHortatoriusDeTemperantia.xml,1,0,0.0,0.6904,Foreign Author
-AsteriusIgnotus_InPsalmum5homilia3.txt,2,0,0.0,0.6905,Foreign Author
-CPG4574_InSanctumThomamApostolum.xml,2,0,0.0,0.6912,Foreign Author
-CPG4693_DePatientiaEtDeConsummationeHuiusSaeculi.xml,3,0,0.0,0.6964,Foreign Author
-CPG4702_InEvangeliiDictumEtDeVirginitate.xml,3,0,0.0,0.7008,Foreign Author
-CPG4966_SermoDeAgricolisInVineaLaborantibus.txt,2,0,0.0,0.7017,Foreign Author
-CPG4759_EncomiumInSanctosMartyres.xml,1,0,0.0,0.7048,Foreign Author
-CPG4636_InIlludMemorFuiDei.xml,6,0,0.0,0.7082,Foreign Author
-CPG4854_InDivitemEtLazarum.txt,1,0,0.0,0.7098,Foreign Author
-CPG4675_DeIeiunio.xml,1,0,0.0,0.7109,Foreign Author
-CPG4871_OratioDeNativitate.txt,1,0,0.0,0.7116,Foreign Author
-CPG4665_InIngressumSanctorumIeiuniorum.xml,1,0,0.0,0.714,Foreign Author
-CPG4969_InIlludHominisCuiusdamDivitisUberesFructusAger.txt,2,0,0.0,0.7173,Foreign Author
-CPG4689_InNovamDominicamEtInApostolumThomam.xml,2,0,0.0,0.7182,Foreign Author
-CPG4552_3_InPsalmum118Homilia3.xml,1,0,0.0,0.7188,Foreign Author
-CPG5059_InIlludNemoPotestDuobusDominisServire.txt,2,0,0.0,0.7214,Foreign Author
-CPG4651_InIlludAscenditDominusInTemplo.xml,2,0,0.0,0.7279,Foreign Author
-CPG4653_InSamaritanam.xml,1,0,0.0,0.7337,Foreign Author
-CPG4642_InAssumptionemDNIC.xml,1,0,0.0,0.7392,Foreign Author
-CPG5003_DeSamaritanam.txt,2,0,0.0,0.7419,Foreign Author
-CPG4589_DePharisaeo.xml,1,0,0.0,0.7467,Foreign Author
-CPG4680_InLazarumHomilia1.xml,3,0,0.0,0.7507,Foreign Author
-CPG4634_CaritatemSecundumDeum.xml,1,0,0.0,0.7528,Foreign Author
-AsteriusIgnotus_InPsalmum12homilia1.txt,2,0,0.0,0.7562,Foreign Author
-AsteriusIgnotus_InPsalmum8homilia2.txt,2,0,0.0,0.7654,Foreign Author
-CPG4552_1_InPsalmum118Homilia1.XML,1,0,0.0,0.7687,Foreign Author
-CPG4604_InLatronem.xml,2,0,0.0,0.7766,Foreign Author
-PsGregorNyss_2017034_DeCreationeHominis1.xml,5,0,0.0,0.7795,Foreign Author
-CPG5045_InAdamEtInSodomitas.txt,2,0,0.0,0.7804,Foreign Author
-CPG4694_DePaenitentiaEtInLectionemDeDavideEtDeUxoreUriae.xml,2,1,50.0,0.7815,Foreign Author
-CPG4550_InPsalmum100.xml,4,0,0.0,0.7853,Foreign Author
-AsteriusIgnotus_InPsalmum8homilia3.txt,2,0,0.0,0.7855,Foreign Author
-CPG3770_InAssumptioneChristi.txt,2,0,0.0,0.7883,Foreign Author
-CPG5073_QuodDebetEpiscopusDocere.txt,2,0,0.0,0.7897,Foreign Author
-AsteriusIgnotus_InPsalmum11homilia2.txt,3,0,0.0,0.7904,Foreign Author
-CPG3172_ContraFornicarios.xml,2,0,0.0,0.7915,Foreign Author
-CPG4635_InProditionemIudae.xml,1,0,0.0,0.797,Foreign Author
-CPG4870_InIlludVigilateEtOrate.txt,1,0,0.0,0.8116,Foreign Author
-Anonymus_DePaenitentia.txt,3,0,0.0,0.817,Foreign Author
-CPG4655_InIlludHomoQuidamDescendebat.xml,1,0,0.0,0.8175,Foreign Author
-AsteriusIgnotus_InPsalmum6.txt,3,0,0.0,0.8182,Foreign Author
-CPG4669_InIlludIgnemVeniMittereInTerram.txt,2,0,0.0,0.8187,Foreign Author
-CPG4656_InNataleIohannisProphetae.xml,3,0,0.0,0.8204,Foreign Author
-AsteriusIgnotus_InPsalmum5homilia4.txt,1,0,0.0,0.8307,Foreign Author
-CPG4695_DeIisQuiInIeiunioContinenterVivunt.xml,1,0,0.0,0.843,Foreign Author
-CPG4917_DeFideEtContraHaereticos.txt,2,0,0.0,0.8493,Foreign Author
-CPG4644_InLaudemSanctiIohannis1.xml,1,0,0.0,0.8505,Foreign Author
-CPG4199_InMeretricemEtPharisaeum.txt,3,0,0.0,0.8515,Foreign Author
-CPG4587_InIlludSimileEstRegnumCaelorumPatrifamilias.xml,5,0,0.0,0.8552,Foreign Author
-CPG4640_InIlludExeuntesPharisaei.xml,3,0,0.0,0.8557,Foreign Author
-AsteriusIgnotus_InPsalmum4homilia1.txt,3,0,0.0,0.8573,Foreign Author
-CPG4602_InRamosPalmarum.xml,3,0,0.0,0.8605,Foreign Author
-CPG5023_DeNavitateIohannisBaptistae.txt,2,0,0.0,0.8608,Foreign Author
-CPG5074_HomiliaInPsalmum71.txt,2,0,0.0,0.8654,Foreign Author
-CPG4520_InIlludExiitEdictum.xml,3,0,0.0,0.8725,Foreign Author
-CPG4751_InSanctumPascha.xml,1,0,0.0,0.8726,Foreign Author
-CPG4896_InOrationemPaterNoster.txt,3,0,0.0,0.8741,Foreign Author
-CPG4984_InPharisaeumEtMeretricem.txt,3,0,0.0,0.8749,Foreign Author
-CPG4190_InPsalmum96.txt,6,0,0.0,0.8759,Foreign Author
-CPG4560_InNatalemChristiDiem.xml,4,0,0.0,0.8803,Foreign Author
-AsteriusIgnotus_InPsalmum14.txt,2,0,0.0,0.8816,Foreign Author
-CPG7922_InMulieresUnguentaFerrentes.txt,5,0,0.0,0.883,Foreign Author
-CPG4516_DePrecationeOrationes.xml,5,1,20.0,0.8857,Foreign Author
-PsGregorNyss_2017035_DeCreationeHominis2.xml,5,0,0.0,0.8873,Foreign Author
-AsteriusIgnotus_InPsalmum9.txt,3,0,0.0,0.8883,Foreign Author
-AsteriusIgnotus_InPsalmum5homilia1.txt,3,0,0.0,0.8931,Foreign Author
-CPG4938_DeSaluteNostraEtOrationePerpetua.txt,1,0,0.0,0.8946,Foreign Author
-CPG4708_DeVirtuteAnimi.xml,2,0,0.0,0.8952,Foreign Author
-CPG4972_DeVigilantia.txt,1,0,0.0,0.8973,Foreign Author
-CPG4577_InParabolamDeFilioProdigo.xml,4,0,0.0,0.9107,Foreign Author
-CPG4683_DeMansuetudine.xml,3,0,0.0,0.9112,Foreign Author
-AsteriusIgnotus_HomiliainferiamVIinfraOctauamPaschae.txt,1,0,0.0,0.9133,Foreign Author
-CPG4590_DeLazaroEtDivite.xml,2,0,0.0,0.917,Foreign Author
-CPG4523_DeOccursuDomini.xml,2,0,0.0,0.9201,Foreign Author
-CPG4698_InSanguinisFluxuLaborantem.xml,2,0,0.0,0.9207,Foreign Author
-PsBasilius_2040054_HomiliaInPsalmum37.txt,4,0,0.0,0.9211,Foreign Author
-CPG4738_InIlludDominusRegnavit.txt,1,0,0.0,0.9227,Foreign Author
-CPG4597_InPrincipiumIndictionis.xml,1,0,0.0,0.9264,Foreign Author
-CPG5013_InPaulumApostolum.txt,2,0,0.0,0.9284,Foreign Author
-CPG4654_InIlludPaterSiPossibileEst.xml,3,0,0.0,0.9285,Foreign Author
-CPG4517_InOraculumZachariaeRedditum.xml,1,0,0.0,0.9347,Foreign Author
-CPG4615_DePaenitentiaSermo1.xml,11,0,0.0,0.9384,Foreign Author
-CPG4764_CatechesisDeIlluminatis.txt,3,0,0.0,0.946,Foreign Author
-CPG4756_InHypapanten.txt,3,0,0.0,0.9461,Foreign Author
-CPG7900_4_InSanctaTheophania.txt,2,0,0.0,0.9505,Foreign Author
-CPG4396_SermoAntequamIretInExsilium.xml,2,0,0.0,0.9542,Foreign Author
-CPG4557_DeContinentia.xml,2,0,0.0,0.9578,Foreign Author
-CPG4648_InIordanemFluvium.xml,2,0,0.0,0.9623,Foreign Author
-PsGregorNyss_2017073_DeOccursuDomini.xml,5,0,0.0,0.9627,Foreign Author
-CPG4547_DeTurture.xml,2,0,0.0,0.9703,Foreign Author
-CPG5017_DeTransfiguratione.txt,1,0,0.0,0.9716,Foreign Author
-CPG3773_InSanctamChristiResurrectionem.xml,1,0,0.0,0.9744,Foreign Author
-Anonymus2_ContraIudaeosEtGraecosEtHaereticos.txt,6,0,0.0,0.9758,Foreign Author
-CPG4185_Defideetlegenaturae.txt,5,0,0.0,0.9776,Foreign Author
-AsteriusIgnotus_InPsalmum13.txt,5,0,0.0,0.9778,Foreign Author
-AsteriusIgnotus_InPsalmum10.txt,3,0,0.0,0.9785,Foreign Author
-AsteriusIgnotus_InPsalmum5homilia2.txt,3,0,0.0,0.9804,Foreign Author
-AsteriusIgnotus_InPsalmum12homilia2.txt,2,0,0.0,0.9835,Foreign Author
-CPG4958_InSanctumStephanum.txt,2,0,0.0,0.9846,Foreign Author
-CPG4536_InPentecostenSermo1.xml,3,0,0.0,0.9856,Foreign Author
-AsteriusIgnotus_InPsalmum11homilia3.txt,1,0,0.0,0.9925,Foreign Author
-CPG4206_DeFide.txt,4,0,0.0,0.9974,Foreign Author
-CPG4202_InChananaeamEtPharaonem.txt,7,0,0.0,0.9981,Foreign Author
-CPG4579_InIlludCollegeruntIdaei.txt,2,0,0.0,0.9998,Foreign Author
-CPG4614_DePaenitentia.xml,6,0,0.0,1.0,Foreign Author
-AsteriusIgnotus_InPsalmum4homilia2.txt,3,0,0.0,1.0015,Foreign Author
-CPG4624_ContraVirginumCorruptores.xml,2,0,0.0,1.0018,Foreign Author
-CPG4629_DeRemissionePeccatorum.xml,3,0,0.0,1.0091,Foreign Author
-AsteriusIgnotus_InPsalmum15.txt,2,0,0.0,1.0185,Foreign Author
-AsteriusIgnotus_InPsalmum2.txt,2,0,0.0,1.0186,Foreign Author
-CPG5007_InOrationemDominicam.xml,1,0,0.0,1.0323,Foreign Author
-CPG4322_InQuatriduanumLazarum.xml,2,0,0.0,1.0346,Foreign Author
-CPG4603_ContraHaereticosEtInSanctamDeiparam.xml,3,0,0.0,1.037,Foreign Author
-CPG4617_DePaenitentiaSermo3.xml,2,0,0.0,1.0418,Foreign Author
-AsteriusIgnotus_InPsalmum3.txt,2,0,0.0,1.0439,Foreign Author
-PsBasilius_2040057_HomiliaInSpirituSancto.txt,2,0,0.0,1.0456,Foreign Author
-CPG4543_InIlludVerumtamenFrustraConturbatur.xml,2,0,0.0,1.0587,Foreign Author
-AsteriusIgnotus_InPsalmum5homilia5.txt,2,0,0.0,1.0844,Foreign Author
-CPG4605_SermoCatecheticusInPascha.xml,1,0,0.0,1.0887,Foreign Author
-CPG4612_InPaschaSermo7.xml,6,0,0.0,1.0942,Foreign Author
-CPG5047_InIlludQuodDeusSuperbisResistat.txt,2,0,0.0,1.0997,Foreign Author
-PsBasilius_2040060_HomiliaDePaenitentia.txt,3,0,0.0,1.1011,Foreign Author
-CPG4500_ComparatioRegisEtMonachi.xml,3,0,0.0,1.1064,Foreign Author
-CPG4507_DeSanctaTrinitate.xml,5,0,0.0,1.1102,Foreign Author
-CPG4945_InNativitatemChristi.txt,1,0,0.0,1.1174,Foreign Author
-CPG4666_DeIeiunioDominicaQuintaIeiuniorum.xml,1,0,0.0,1.1179,Foreign Author
-CPG4626_DeEleemosyne.xml,3,0,0.0,1.1249,Foreign Author
-CPG4525_InVenerabilemCrucem.xml,3,0,0.0,1.1365,Foreign Author
-CPG4611_InPaschaSermo6.xml,6,0,0.0,1.1367,Foreign Author
-CPG4916_InIlludNemoBunusNisiSolusDeus.txt,4,0,0.0,1.1549,Foreign Author
-CPG4526_InTriduanamResurrectionemDomini.xml,2,0,0.0,1.1552,Foreign Author
-CPG4750_EncomiumInSanctumIohannemEvangelistam.xml,2,0,0.0,1.1557,Foreign Author
-CPG4701_InIlludSiQuaInChristoNovaCreatura.xml,7,0,0.0,1.1563,Foreign Author
-CPG4668_DeOratione.xml,1,0,0.0,1.1592,Foreign Author
-CPG4645_InLaudemSanctiIohannis2.xml,1,0,0.0,1.1678,Foreign Author
-CPG4501_AscetamFacetiisUtiNonDebere.xml,3,0,0.0,1.1697,Foreign Author
-CPG4549_InPsalmum94.xml,2,0,0.0,1.1701,Foreign Author
-CPG4678_DeEleemosyna.xml,1,0,0.0,1.1721,Foreign Author
-CPG4506_ContraIudaeosGentilesEtHaereticos.xml,3,0,0.0,1.1795,Foreign Author
-CPG4581_InSamaritanam.xml,4,0,0.0,1.1846,Foreign Author
-CPG2271_InHypapantem.txt,6,0,0.0,1.1881,Foreign Author
-CPG4518_InLaudemConceptionisIohannisBaptistae.xml,2,0,0.0,1.1924,Foreign Author
-CPG4667_DeIeiunio.xml,4,0,0.0,1.1932,Foreign Author
-CPG7555_DePaenitentiaEtContinentiaEtVirginitate.txt,10,0,0.0,1.2141,Foreign Author
-CPG4616_DePaenitentiaSermo2.xml,4,1,25.0,1.2224,Foreign Author
-CPG4544_InPsalmum50Homilia1.xml,7,0,0.0,1.2237,Foreign Author
-CPG4618_DeEleemosyna.xml,3,0,0.0,1.2264,Foreign Author
-CPG4502_DeIeiunioEtEleemosyna.xml,2,0,0.0,1.2268,Foreign Author
-PsBasilius_2040012_HomiliaDeVirginitate.xml,3,0,0.0,1.2406,Foreign Author
-CPG4529_DeChananaea.xml,6,0,0.0,1.2421,Foreign Author
-CPG4576_InIlludSufficitTibiGratiaMea.xml,6,0,0.0,1.248,Foreign Author
-CPG4927_InExaltionemCrucis.txt,1,0,0.0,1.2591,Foreign Author
-CPG4610_InPaschaSermo5.xml,2,0,0.0,1.2652,Foreign Author
-CPG4514_DeBeatoAbraham.xml,4,0,0.0,1.3176,Foreign Author
-CPG4670_AdmonitionesSpirituales.xml,2,0,0.0,1.3397,Foreign Author
-CPG5019_InIlludSiEnimDimiseritisHominibusPeccataEorum.txt,2,0,0.0,1.3455,Foreign Author
-CPG4679_DeCaritate.xml,1,0,0.0,1.3633,Foreign Author
-CPG4532_InAscensionemSermo2.xml,2,0,0.0,1.3707,Foreign Author
-CPG4408_InSanctumPascha.xml,3,0,0.0,1.3712,Foreign Author
-CPG4658_InZacchaeumPublicanum.xml,1,0,0.0,1.3803,Foreign Author
-CPG4513_InPetrumEtHeliam.xml,5,0,0.0,1.392,Foreign Author
-CPG4607_InPaschaSermo2.xml,2,0,0.0,1.3978,Foreign Author
-CPG4609_InPaschaSermo4.xml,1,0,0.0,1.4095,Foreign Author
-CPG4621_DePatientiaSermo2.xml,3,0,0.0,1.4271,Foreign Author
-CPG4768_InIlludAttenditeVobisIpsis.xml,3,0,0.0,1.4271,Foreign Author
-CPG4366_DeTerraeMotu.xml,2,0,0.0,1.4387,Foreign Author
-CPG4539_DeAdorationePretiosaeCrucis.xml,3,0,0.0,1.4471,Foreign Author
-CPG4343_2_DeSanctaPentecosteHomilia2.txt,3,0,0.0,1.4949,Foreign Author
-CPG4620_DePatientiaSermo1.xml,4,0,0.0,1.497,Foreign Author
-CPG4743_InIlludNoliteThesaurizareVobisTheasaurosInTerra.xml,2,0,0.0,1.5082,Foreign Author
-CPG4329_6_DeLazaroconcio6.xml,1,0,0.0,1.5175,Foreign Author
-CPG4326_ContraIudaeosEtGentiles.txt,12,0,0.0,1.5212,Foreign Author
-CPG4585_InIlludAttenditeNeEleemosynam.xml,2,0,0.0,1.5769,Foreign Author
-CPG4595_InSecundumDominiAdventum.xml,4,0,0.0,1.5901,Foreign Author
-CPG4954_SermoDeQuadragesima.txt,2,0,0.0,1.6199,Foreign Author
-CPG4505_DeFugiendaSimulataSpecie.xml,1,0,0.0,1.712,Foreign Author
+CPG4641_InMeretricemEtInPharisaeum,1,0,0.0,1.4941,Grey Zone (Mixed/Edited)
+CPG4573_InDuodecimApostolos,1,0,0.0,1.7322,Foreign Author
+AsteriusIgnotus_InPsalmum5homilia3,2,0,0.0,1.7687,Foreign Author
+CPG4691_InSanctumStephanumHomilia2,1,0,0.0,1.769,Foreign Author
+CPG5003_DeSamaritanam,2,0,0.0,1.8602,Foreign Author
+CPG4945_InNativitatemChristi,1,0,0.0,1.9299,Foreign Author
+AsteriusIgnotus_InPsalmum8homilia2,3,0,0.0,1.9918,Foreign Author
+CPG4591_InPublicanumEtPharisaeum,2,0,0.0,2.1186,Foreign Author
+CPG4640_InIlludExeuntesPharisaei,3,1,33.33,2.171,Foreign Author
+CPG5045_InAdamEtInSodomitas,2,0,0.0,2.2171,Foreign Author
+CPG4655_InIlludHomoQuidamDescendebat,1,0,0.0,2.2493,Foreign Author
+CPG4972_DeVigilantia,1,0,0.0,2.2656,Foreign Author
+CPG4759_EncomiumInSanctosMartyres,1,0,0.0,2.2677,Foreign Author
+CPG4652_InMediamPentecosten,1,0,0.0,2.2829,Foreign Author
+CPG4996_1_InResurrectionemDomini,2,0,0.0,2.2861,Foreign Author
+CPG4633_DeCaritate,1,0,0.0,2.327,Foreign Author
+CPG4966_SermoDeAgricolisInVineaLaborantibus,2,0,0.0,2.3292,Foreign Author
+CPG4588_InParabolamDeFicu,3,0,0.0,2.3651,Foreign Author
+tlg2022,2,0,0.0,2.3796,Foreign Author
+CPG4858_InVerEtInResurrectionem,1,0,0.0,2.3951,Foreign Author
+CPG3177_InLuciferamSanctamDominiResurrectionem,1,0,0.0,2.4082,Foreign Author
+AsteriusIgnotus_InPsalmum11homilia3,1,0,0.0,2.4166,Foreign Author
+CPG4927_InExaltionemCrucis,1,0,0.0,2.4466,Foreign Author
+CPG4669_InIlludIgnemVeniMittereInTerram,2,0,0.0,2.4471,Foreign Author
+CPG4749_InSynaximIncorporalium,3,0,0.0,2.4507,Foreign Author
+CPG4750_EncomiumInSanctumIohannemEvangelistam,2,0,0.0,2.4513,Foreign Author
+CPG4632_DeSpe,2,0,0.0,2.4522,Foreign Author
+PsGregorNyss_2017036_DeParadiso,2,0,0.0,2.4683,Foreign Author
+CPG5017_DeTransfiguratione,1,0,0.0,2.4758,Foreign Author
+CPG4366_DeTerraeMotu,2,0,0.0,2.4767,Foreign Author
+CPG4501_AscetamFacetiisUtiNonDebere,3,0,0.0,2.478,Foreign Author
+CPG4526_InTriduanamResurrectionemDomini,2,0,0.0,2.4934,Foreign Author
+CPG4657_InNataleDNIC,2,0,0.0,2.4948,Foreign Author
+CPG4769_InIlludNoliAemulariInMalignanibus,3,0,0.0,2.5057,Foreign Author
+CPG4757_InIlludCredidiPropterQuodLocutusSum,2,0,0.0,2.5163,Foreign Author
+AsteriusIgnotus_InPsalmum7,4,0,0.0,2.5333,Foreign Author
+CPG7922_InMulieresUnguentaFerrentes,5,0,0.0,2.5409,Foreign Author
+CPG4608_InPaschaSermo3,2,0,0.0,2.5443,Foreign Author
+CPG4696_SermoHortatoriusDeTemperantia,1,0,0.0,2.5464,Foreign Author
+CPG4533_InAscensionemSermo3,1,0,0.0,2.5516,Foreign Author
+CPG4706_AdEosQuiMagniAestimantOpes,2,0,0.0,2.5517,Foreign Author
+CPG4651_InIlludAscenditDominusInTemplo,2,0,0.0,2.5533,Foreign Author
+CPG4560_InNatalemChristiDiem,4,0,0.0,2.5607,Foreign Author
+AsteriusIgnotus_InPsalmum1,1,0,0.0,2.5828,Foreign Author
+CPG4984_InPharisaeumEtMeretricem,3,0,0.0,2.5836,Foreign Author
+CPG4708_DeVirtuteAnimi,2,0,0.0,2.5898,Foreign Author
+CPG4663_InFiliumViduae,2,0,0.0,2.6047,Foreign Author
+AsteriusIgnotus_InPsalmum3,2,0,0.0,2.6128,Foreign Author
+AsteriusIgnotus_InPsalmum5homilia6,2,0,0.0,2.6211,Foreign Author
+CPG4660_InIlludExiitQuiSeminat,2,0,0.0,2.6437,Foreign Author
+CPG4510_InSanctumRomanumMartyremHomilia2,2,0,0.0,2.6526,Foreign Author
+CPG4751_InSanctumPascha,1,0,0.0,2.6547,Foreign Author
+CPG4658_InZacchaeumPublicanum,1,0,0.0,2.6553,Foreign Author
+CPG4531_InAscensionemSermo1,1,0,0.0,2.6576,Foreign Author
+AsteriusIgnotus_InPsalmum4homilia2,3,0,0.0,2.6674,Foreign Author
+CPG4756_InHypapanten,3,0,0.0,2.6692,Foreign Author
+CPG4888_InAdamEtDePaenitentia,2,0,0.0,2.6714,Foreign Author
+CPG4585_InIlludAttenditeNeEleemosynam,2,0,0.0,2.6766,Foreign Author
+CPG5064_InNataleDomini,1,0,0.0,2.6803,Foreign Author
+CPG4612_InPaschaSermo7,6,0,0.0,2.6834,Foreign Author
+CPG4607_InPaschaSermo2,3,0,0.0,2.6857,Foreign Author
+CPG4666_DeIeiunioDominicaQuintaIeiuniorum,1,0,0.0,2.6894,Foreign Author
+CPG4514_DeBeatoAbraham,4,0,0.0,2.6974,Foreign Author
+CPG4557_DeContinentia,2,0,0.0,2.7011,Foreign Author
+AsteriusIgnotus_HomiliainferiamVIinfraOctauamPaschae,1,0,0.0,2.7077,Foreign Author
+CPG4636_InIlludMemorFuiDei,6,0,0.0,2.7185,Foreign Author
+CPG4603_ContraHaereticosEtInSanctamDeiparam,3,0,0.0,2.7238,Foreign Author
+PSBasilius_2040013_DeSpiritu,1,0,0.0,2.7252,Foreign Author
+CPG4548_InPsalmum92,3,0,0.0,2.7262,Foreign Author
+CPG4673_InResurrectionemDomini,1,0,0.0,2.7285,Foreign Author
+CPG4509_InSanctamPelagiam,1,0,0.0,2.7357,Foreign Author
+CPG4646_InTransfigurationem,1,0,0.0,2.7404,Foreign Author
+CPG4653_InSamaritanam,1,0,0.0,2.7475,Foreign Author
+CPG4537_InPentecostenSermo2,2,0,0.0,2.7499,Foreign Author
+AsteriusIgnotus_InPsalmum10,3,0,0.0,2.7531,Foreign Author
+CPG4593_DeIohanneApostolo,3,0,0.0,2.7546,Foreign Author
+CPG4442_InPoenitentiamNinivitarum,3,0,0.0,2.7631,Foreign Author
+CPG4580_InDecemVirgines,3,0,0.0,2.7788,Foreign Author
+CPG4683_DeMansuetudine,3,0,0.0,2.7932,Foreign Author
+CPG4547_InPsalmum75,3,0,0.0,2.7962,Foreign Author
+AsteriusIgnotus_InPsalmum4homilia1,3,0,0.0,2.801,Foreign Author
+CPG4517_InOraculumZachariaeRedditum,1,0,0.0,2.8021,Foreign Author
+CPG4511_DeProditioneIudae,2,0,0.0,2.8072,Foreign Author
+CPG4617_DePaenitentiaSermo3,2,0,0.0,2.8074,Foreign Author
+CPG4520_InIlludExiitEdictum,3,0,0.0,2.8117,Foreign Author
+CPG5831_InSanctumPascha,1,0,0.0,2.8124,Foreign Author
+CPG4343_2_DeSanctaPentecosteHomilia2,3,0,0.0,2.8157,Foreign Author
+AsteriusIgnotus_InPsalmum2,3,0,0.0,2.8205,Foreign Author
+CPG4958_InSanctumStephanum,2,0,0.0,2.833,Foreign Author
+CPG4575_InSanctumStephanumProtomartyrem,4,0,0.0,2.8359,Foreign Author
+CPG4615_DePaenitentiaSermo1,11,0,0.0,2.8489,Foreign Author
+AsteriusIgnotus_InPsalmum11homilia1,2,0,0.0,2.8513,Foreign Author
+CPG4567_DeSusanna,3,0,0.0,2.8527,Foreign Author
+AsteriusIgnotus_InPsalmum18,3,0,0.0,2.8533,Foreign Author
+CPG5004_InSanctamTheophaniam,1,0,0.0,2.8535,Foreign Author
+CPG4513_InPetrumEtHeliam,6,0,0.0,2.8542,Foreign Author
+CPG4505_DeFugiendaSimulataSpecie,2,0,0.0,2.86,Foreign Author
+CPG4589_DePharisaeo,2,0,0.0,2.867,Foreign Author
+CPG4758_InChristiNatalem,1,0,0.0,2.8888,Foreign Author
+CPG4600_InSanctumStephanum,1,0,0.0,2.89,Foreign Author
+CPG4199_InMeretricemEtPharisaeum,3,0,0.0,2.8905,Foreign Author
+CPG3770_InAssumptioneChristi,2,0,0.0,2.8917,Foreign Author
+CPG4584_DeCirco,2,0,0.0,2.8929,Foreign Author
+CPG4553_InPsalmum139,2,0,0.0,2.8938,Foreign Author
+AsteriusIgnotus_HomiliainferiamVinfraOctauamPaschae,1,0,0.0,2.8968,Foreign Author
+CPG4916_InIlludNemoBunusNisiSolusDeus,4,0,0.0,2.899,Foreign Author
+PsBasilius_2040012_HomiliaDeVirginitate,4,0,0.0,2.9009,Foreign Author
+CPG4408_InSanctumPascha,3,0,0.0,2.9142,Foreign Author
+CPG4519_InAnnuntiationemBeataeVirginis,2,0,0.0,2.9148,Foreign Author
+CPG4701_InIlludSiQuaInChristoNovaCreatura,7,0,0.0,2.9161,Foreign Author
+Anonymus_DePaenitentia,3,0,0.0,2.9186,Foreign Author
+CPG4738_InIlludDominusRegnavit,1,0,0.0,2.9205,Foreign Author
+CPG4649_InPharisaeumEtInMeretricem,5,1,20.0,2.9233,Foreign Author
+CPG3172_ContraFornicarios,2,0,0.0,2.9237,Foreign Author
+CPG4581_InSamaritanam,5,1,20.0,2.9269,Foreign Author
+CPG4605_SermoCatecheticusInPascha,1,0,0.0,2.9357,Foreign Author
+AsteriusIgnotus_InPsalmum9,3,0,0.0,2.9489,Foreign Author
+CPG4850_LaudatioPauliApostoli,2,0,0.0,2.954,Foreign Author
+CPG5023_DeNavitateIohannisBaptistae,2,0,0.0,2.9583,Foreign Author
+CPG4506_ContraIudaeosGentilesEtHaereticos,4,0,0.0,2.9589,Foreign Author
+AsteriusIgnotus_InPsalmum8homilia1,1,0,0.0,2.9607,Foreign Author
+CPG4185_Defideetlegenaturae,5,0,0.0,2.9688,Foreign Author
+CPG4677_InAnnuntiationemDeiparae,3,0,0.0,2.9837,Foreign Author
+CPG4689_InNovamDominicamEtInApostolumThomam,3,0,0.0,2.9846,Foreign Author
+CPG4599_InExaltationemVenerandaeCrucis,2,0,0.0,2.9848,Foreign Author
+CPG4698_InSanguinisFluxuLaborantem,2,0,0.0,2.9943,Foreign Author
+CPG4670_AdmonitionesSpirituales,2,0,0.0,2.9991,Foreign Author
+CPG4630_DeNonIudicandoProximo,2,0,0.0,2.9999,Foreign Author
+CPG4699_QuodMariSimilisSitHaecVita,1,0,0.0,3.0204,Foreign Author
+CPG4628_DeAnnuntiationemSanctissimaeDeiparae,2,0,0.0,3.0212,Foreign Author
+CPG4523_DeOccursuDomini,3,0,0.0,3.0241,Foreign Author
+CPG4614_DePaenitentia,6,0,0.0,3.0242,Foreign Author
+PsGregorNyss_2017035_DeCreationeHominis2,5,0,0.0,3.0296,Foreign Author
+CPG2270_InNatalemChristiDiem,3,0,0.0,3.0318,Foreign Author
+CPG4733_DeMeretrice,2,0,0.0,3.0338,Foreign Author
+CPG4602_InRamosPalmarum,3,0,0.0,3.0392,Foreign Author
+CPG5019_InIlludSiEnimDimiseritisHominibusPeccataEorum,2,0,0.0,3.0395,Foreign Author
+CPG4322_InQuatriduanumLazarum,3,0,0.0,3.0406,Foreign Author
+CPG4515_DeSanctaTheclaMartyre,1,0,0.0,3.0474,Foreign Author
+CPG4643_InRamosPalmarum,3,0,0.0,3.0499,Foreign Author
+CPG3773_InSanctamChristiResurrectionem,1,0,0.0,3.0552,Foreign Author
+CPG4572_InPetrumEtPaulum,2,0,0.0,3.0602,Foreign Author
+CPG4667_DeIeiunio,4,0,0.0,3.0608,Foreign Author
+CPG4571_InPraecursoremDomini,1,0,0.0,3.0608,Foreign Author
+CPG3187_InStephanumProtomartyremII,3,0,0.0,3.0639,Foreign Author
+CPG5047_InIlludQuodDeusSuperbisResistat,2,0,0.0,3.0826,Foreign Author
+CPG4544_InPsalmum50Homilia1,7,0,0.0,3.0884,Foreign Author
+CPG4697_QuodGraveSitDeiClementiamContemnere,1,0,0.0,3.0956,Foreign Author
+CPG4610_InPaschaSermo5,3,0,0.0,3.0956,Foreign Author
+CPG4621_DePatientiaSermo2,4,0,0.0,3.1021,Foreign Author
+CPG4768_InIlludAttenditeVobisIpsis,4,0,0.0,3.1021,Foreign Author
+CPG4516_DePrecationeOrationes,5,0,0.0,3.1041,Foreign Author
+CPG5806_InSanctaTheophania,1,0,0.0,3.1052,Foreign Author
+PsBasilius_2040060_HomiliaDePaenitentia,3,0,0.0,3.1065,Foreign Author
+AsteriusIgnotus_InPsalmum6,3,0,0.0,3.1067,Foreign Author
+CPG4737_InChristiAscensionem,1,0,0.0,3.1075,Foreign Author
+CPG4702_InEvangeliiDictumEtDeVirginitate,4,0,0.0,3.1101,Foreign Author
+CPG4502_DeIeiunioEtEleemosyna,2,0,0.0,3.1105,Foreign Author
+CPG4539_DeAdorationePretiosaeCrucis,3,0,0.0,3.1177,Foreign Author
+CPG4587_InIlludSimileEstRegnumCaelorumPatrifamilias,5,0,0.0,3.1182,Foreign Author
+CPG4694_DePaenitentiaEtInLectionemDeDavideEtDeUxoreUriae,2,0,0.0,3.1252,Foreign Author
+CPG4654_InIlludPaterSiPossibileEst,3,0,0.0,3.1307,Foreign Author
+PSBasilius_2040033_InBarlaamMartyrem,1,0,0.0,3.1391,Foreign Author
+CPG5074_HomiliaInPsalmum71,3,0,0.0,3.1391,Foreign Author
+CPG2861_InBarlaamMartyrem,1,0,0.0,3.1391,Foreign Author
+AsteriusIgnotus_InPsalmum15,2,0,0.0,3.1408,Foreign Author
+CPG4524_InSanctaEtMagnaParasceue,3,0,0.0,3.1457,Foreign Author
+CPG4635_InProditionemIudae,1,0,0.0,3.1466,Foreign Author
+CPG4518_InLaudemConceptionisIohannisBaptistae,2,0,0.0,3.1476,Foreign Author
+PsGregorNyss_2017034_DeCreationeHominis1,5,0,0.0,3.148,Foreign Author
+CPG4586_InPrincipiumIndictionisInMartyres,2,0,0.0,3.1492,Foreign Author
+AsteriusIgnotus_InPsalmum13,5,0,0.0,3.1637,Foreign Author
+AsteriusIgnotus_InPsalmum14,3,0,0.0,3.1641,Foreign Author
+CPG4532_InAscensionemSermo2,2,0,0.0,3.1669,Foreign Author
+CPG4577_InParabolamDeFilioProdigo,4,0,0.0,3.1687,Foreign Author
+CPG2271_InHypapantem,6,0,0.0,3.1704,Foreign Author
+CPG4918_InCaecumNatum,2,0,0.0,3.1706,Foreign Author
+CPG4954_SermoDeQuadragesima,2,0,0.0,3.1716,Foreign Author
+CPG5807_InTransfigurationemDomini,2,0,0.0,3.1836,Foreign Author
+AsteriusIgnotus_InPsalmum5homilia4,1,0,0.0,3.1847,Foreign Author
+PsBasilius_2040053_InPsalmum28,2,0,0.0,3.1863,Foreign Author
+CPG4525_InVenerabilemCrucem,3,0,0.0,3.1875,Foreign Author
+CPG4648_InIordanemFluvium,2,0,0.0,3.1899,Foreign Author
+CPG4743_InIlludNoliteThesaurizareVobisTheasaurosInTerra,2,0,0.0,3.19,Foreign Author
+CPG4650_InChristiNatalemDiem,1,0,0.0,3.1916,Foreign Author
+CPG7555_DePaenitentiaEtContinentiaEtVirginitate,10,0,0.0,3.1965,Foreign Author
+CPG5818_InSanctumAndreamApostolum,1,0,0.0,3.2008,Foreign Author
+CPG4595_InSecundumDominiAdventum,4,0,0.0,3.2012,Foreign Author
+CPG4550_InPsalmum100,4,0,0.0,3.2014,Foreign Author
+CPG4590_DeLazaroEtDivite,2,0,0.0,3.2069,Foreign Author
+CPG4576_InIlludSufficitTibiGratiaMea,6,0,0.0,3.2085,Foreign Author
+CPG4534_InAscensionemDominiSermo4,2,0,0.0,3.2087,Foreign Author
+CPG4679_DeCaritate,1,0,0.0,3.2187,Foreign Author
+CPG7385_InSanctaTheophaniaHomilia4,3,0,0.0,3.2203,Foreign Author
+CPG4854_InDivitemEtLazarum,1,0,0.0,3.2204,Foreign Author
+CPG4629_DeRemissionePeccatorum,3,0,0.0,3.2238,Foreign Author
+AsteriusIgnotus_InPsalmum5homilia2,3,0,0.0,3.227,Foreign Author
+CPG4620_DePatientiaSermo1,5,0,0.0,3.2349,Foreign Author
+CPG4500_ComparatioRegisEtMonachi,3,0,0.0,3.2445,Foreign Author
+AsteriusIgnotus_InPsalmum8homilia3,2,0,0.0,3.2579,Foreign Author
+CPG4732_InMagnamFeriamQuintam,1,0,0.0,3.2606,Foreign Author
+AsteriusIgnotus_InPsalmum12homilia2,2,0,0.0,3.2683,Foreign Author
+CPG4695_DeIisQuiInIeiunioContinenterVivunt,1,0,0.0,3.2876,Foreign Author
+CPG4609_InPaschaSermo4,1,0,0.0,3.2964,Foreign Author
+CPG2930_HomiliaInAquas,1,0,0.0,3.3133,Foreign Author
+CPG4601_InMediamHebdomadamIeiuniorum,1,0,0.0,3.3178,Foreign Author
+CPG4624_ContraVirginumCorruptores,2,0,0.0,3.3229,Foreign Author
+CPG4507_DeSanctaTrinitate,6,0,0.0,3.3263,Foreign Author
+CPG4987_OratioInIohannemTheologum,2,0,0.0,3.3338,Foreign Author
+PsBasilius_2040057_HomiliaInSpirituSancto,2,0,0.0,3.3393,Foreign Author
+CPG4618_DeEleemosyna,3,0,0.0,3.3442,Foreign Author
+CPG4703_DeCognitioneDei,1,0,0.0,3.3453,Foreign Author
+CPG4326_ContraIudaeosEtGentiles,12,0,0.0,3.349,Foreign Author
+CPG4535_InAscensionemSermo5,1,0,0.0,3.3768,Foreign Author
+CPG4871_OratioDeNativitate,1,0,0.0,3.3779,Foreign Author
+CPG4529_DeChananaea,6,0,0.0,3.3781,Foreign Author
+PsBasilius_2040054_HomiliaInPsalmum37,4,0,0.0,3.3822,Foreign Author
+AsteriusIgnotus_InPsalmum11homilia2,4,0,0.0,3.3901,Foreign Author
+CPG4938_DeSaluteNostraEtOrationePerpetua,2,0,0.0,3.3905,Foreign Author
+CPG5059_InIlludNemoPotestDuobusDominisServire,2,0,0.0,3.3913,Foreign Author
+CPG4665_InIngressumSanctorumIeiuniorum,1,0,0.0,3.3938,Foreign Author
+CPG4202_InChananaeamEtPharaonem,7,0,0.0,3.4057,Foreign Author
+CPG4543_InIlludVerumtamenFrustraConturbatur,3,0,0.0,3.4073,Foreign Author
+CPG4690_InSanctumStephanumHomilia1,2,0,0.0,3.4075,Foreign Author
+CPG4680_InLazarumHomilia1,3,0,0.0,3.4212,Foreign Author
+CPG4969_InIlludHominisCuiusdamDivitisUberesFructusAger,2,0,0.0,3.4212,Foreign Author
+CPG4747_InPassionemSalvatoris,1,0,0.0,3.4406,Foreign Author
+CPG4645_InLaudemSanctiIohannis2,1,0,0.0,3.4424,Foreign Author
+CPG4206_DeFide,4,0,0.0,3.4444,Foreign Author
+CPG4616_DePaenitentiaSermo2,4,0,0.0,3.4557,Foreign Author
+CPG4634_CaritatemSecundumDeum,2,0,0.0,3.4571,Foreign Author
+CPG4570_InDecollationemSanctiIohannis,3,0,0.0,3.4682,Foreign Author
+CPG4656_InNataleIohannisProphetae,4,0,0.0,3.4767,Foreign Author
+CPG4549_InPsalmum94,2,0,0.0,3.4866,Foreign Author
+CPG4642_InAssumptionemDNIC,1,0,0.0,3.4874,Foreign Author
+CPG5013_InPaulumApostolum,2,0,0.0,3.5167,Foreign Author
+CPG4917_DeFideEtContraHaereticos,3,0,0.0,3.523,Foreign Author
+CPG4504_ChristiDiscipulumBenignumEsseDebere,2,0,0.0,3.5367,Foreign Author
+AsteriusIgnotus_InPsalmum5homilia5,2,0,0.0,3.5496,Foreign Author
+CPG4611_InPaschaSermo6,7,0,0.0,3.5881,Foreign Author
+CPG4565_InEliamProphetam,2,0,0.0,3.6124,Foreign Author
+AsteriusIgnotus_InPsalmum5homilia1,3,0,0.0,3.6184,Foreign Author
+CPG4661_InDrachmam,2,0,0.0,3.6247,Foreign Author
+PsGregorNyss_2017051_InAnnuntiationem,2,0,0.0,3.6367,Foreign Author
+Anonymus2_ContraIudaeosEtGraecosEtHaereticos,6,0,0.0,3.6392,Foreign Author
+CPG4190_InPsalmum96,6,0,0.0,3.6412,Foreign Author
+CPG4662_DeIeiunio,2,0,0.0,3.6474,Foreign Author
+CPG4574_InSanctumThomamApostolum,2,0,0.0,3.6569,Foreign Author
+CPG4729_InRecensBaptizatos,1,0,0.0,3.6591,Foreign Author
+AsteriusIgnotus_InPsalmum12homilia1,2,0,0.0,3.6671,Foreign Author
+CPG4637_InRachelem,1,0,0.0,3.6707,Foreign Author
+CPG7900_4_InSanctaTheophania,2,0,0.0,3.6817,Foreign Author
+CPG4764_CatechesisDeIlluminatis,3,0,0.0,3.6851,Foreign Author
+CPG4626_DeEleemosyne,3,0,0.0,3.6949,Foreign Author
+CPG4736_InNativitatemIohannisBaptistae,2,0,0.0,3.7028,Foreign Author
+CPG4604_InLatronem,2,0,0.0,3.7081,Foreign Author
+PsBasilius_2040056_HomiliaInPsalmum132,1,0,0.0,3.7326,Foreign Author
+CPG4396_SermoAntequamIretInExsilium,2,0,0.0,3.7431,Foreign Author
+CPG4597_InPrincipiumIndictionis,1,0,0.0,3.7516,Foreign Author
+CPG4726_InNataleDominiEtInSantamMariamGenetricem,2,0,0.0,3.7642,Foreign Author
+CPG4547_DeTurture,2,0,0.0,3.7714,Foreign Author
+CPG4678_DeEleemosyna,2,0,0.0,3.7759,Foreign Author
+CPG4681_InLazarumHomilia2,2,0,0.0,3.7812,Foreign Author
+CPG4671_InPrincipiumIeiuniorum,2,0,0.0,3.7836,Foreign Author
+CPG4566_DeIoseph,3,0,0.0,3.8324,Foreign Author
+CPG5073_QuodDebetEpiscopusDocere,2,0,0.0,3.8644,Foreign Author
+CPG5031_DeAnnuntiatione,2,0,0.0,3.866,Foreign Author
+CPG3767_InRamosPalmarum,3,0,0.0,3.8807,Foreign Author
+CPG4700_InIlludSimileEstRegnumCaelorumGranoSinapis,2,0,0.0,3.8818,Foreign Author
+CPG4536_InPentecostenSermo1,3,0,0.0,3.8854,Foreign Author
+CPG4707_DePrecatione,2,0,0.0,3.9196,Foreign Author
+PsGregorNyss_2017073_DeOccursuDomini,6,0,0.0,3.951,Foreign Author
+CPG4668_DeOratione,1,0,0.0,3.9928,Foreign Author
+CPG4693_DePatientiaEtDeConsummationeHuiusSaeculi,3,0,0.0,4.0377,Foreign Author
+CPG4896_InOrationemPaterNoster,4,0,0.0,4.0692,Foreign Author
+CPG4727_VisioDanielis,2,0,0.0,4.1685,Foreign Author
+AsteriusIgnotus_InPsalmum8homilia4,1,0,0.0,4.2644,Foreign Author
+CPG4631_DePaenitentia,2,0,0.0,4.3631,Foreign Author
+CPG4625_ContraHaereticos,2,0,0.0,4.3976,Foreign Author
+CPG4870_InIlludVigilateEtOrate,1,0,0.0,4.4525,Foreign Author
+CPG4675_DeIeiunio,1,0,0.0,4.7372,Foreign Author
+CPG4579_InIlludCollegeruntIdaei,2,0,0.0,4.7731,Foreign Author
+CPG4644_InLaudemSanctiIohannis1,1,0,0.0,5.0402,Foreign Author
+CPG4740_InResurrectionemDomini,1,0,0.0,5.2628,Foreign Author
+CPG5007_InOrationemDominicam,1,0,0.0,5.4065,Foreign Author
